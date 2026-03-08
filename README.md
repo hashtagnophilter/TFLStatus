@@ -87,3 +87,43 @@ This workspace is already set up as a git repository and already has an `origin`
    git branch -M main
    git push -u origin main
    ```
+
+## Train Timeliness Monitor (Proof of Concept)
+
+A separate module (`train_timeliness.py`) calculates real-time on-time performance for monitored lines by comparing TFL arrival predictions against scheduled timetable data.
+
+### How it works
+
+1. **Fetches arrival predictions** from `GET /Line/{id}/Arrivals` — real-time predicted arrival times for trains at monitored stations
+2. **Fetches timetable data** from `GET /Line/{id}/Timetable/{stationId}` — the scheduled departure times
+3. **Matches each prediction** to the nearest scheduled time (within a 15-minute window)
+4. **Calculates variance** — positive = late, negative = early, within ±120 seconds = on time
+5. **Persists snapshots** as timestamped JSON files for historical tracking
+6. **Generates an HTML report** with:
+   - Per-line on-time percentage with ✅/⚠️/❌ indicators
+   - SVG sparkline showing on-time % over time
+   - Stacked distribution bar (early / on time / late)
+   - Station-level breakdown table
+
+### Running locally
+
+```bash
+pip install requests
+python train_timeliness.py
+```
+
+This creates `timeliness_data/` (JSON snapshots) and `timeliness_report.html`.
+
+### GitHub Actions workflow
+
+The workflow `.github/workflows/train-timeliness.yml` runs automatically:
+
+- **Schedule**: Every 5 minutes, 8 AM–midnight UTC, Monday–Friday
+- **Manual trigger**: Available via `workflow_dispatch`
+- Collects a snapshot, generates the HTML report, and commits results back to the repo
+
+### Running tests
+
+```bash
+python -m unittest tests.test_train_timeliness -v
+```
