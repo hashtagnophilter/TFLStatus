@@ -83,6 +83,9 @@ MONITORED_LINES = {
 # On-time threshold in seconds (trains within this window are considered "on time")
 ON_TIME_THRESHOLD_SECONDS = 120  # 2 minutes
 
+# Maximum window in seconds for matching a prediction to a scheduled time
+MAX_MATCHING_WINDOW_SECONDS = 900  # 15 minutes
+
 # Data directory for persisting snapshots
 DATA_DIR = Path(os.environ.get("DATA_DIR", "timeliness_data"))
 
@@ -179,7 +182,7 @@ def find_nearest_scheduled_time(
         variance = (predicted_arrival - scheduled_time).total_seconds()
 
         # Only match within a reasonable window (15 minutes)
-        if abs(variance) < abs(best_variance) and abs(variance) <= 900:
+        if abs(variance) < abs(best_variance) and abs(variance) <= MAX_MATCHING_WINDOW_SECONDS:
             best_variance = variance
             best_match = scheduled_time
 
@@ -361,7 +364,7 @@ def generate_sparkline_svg(values: List[float], colour: str, width: int = 200, h
     - Red zone (< 60%): poor
     """
     if not values:
-        return '<svg width="{}" height="{}"><text x="5" y="20" font-size="12" fill="#999">No data</text></svg>'.format(width, height)
+        return f'<svg width="{width}" height="{height}"><text x="5" y="20" font-size="12" fill="#999">No data</text></svg>'
 
     min_val = 0
     max_val = 100
