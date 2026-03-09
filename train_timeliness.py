@@ -605,7 +605,7 @@ def generate_html_report(all_metrics: Dict[str, Dict], current_snapshots: List[D
       align-items: center;
       margin-bottom: 15px;
     }}
-    .line-name {{ font-size: 20px; font-weight: 700; }}
+    .line-name {{ font-size: 20px; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.15); }}
     .perf-good {{ color: #4CAF50; font-weight: 600; font-size: 18px; }}
     .perf-moderate {{ color: #FF9800; font-weight: 600; font-size: 18px; }}
     .perf-poor {{ color: #f44336; font-weight: 600; font-size: 18px; }}
