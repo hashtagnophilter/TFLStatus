@@ -173,9 +173,14 @@ def find_nearest_scheduled_time(
     best_variance = float('inf')
 
     for entry in timetable_entries:
+        hour = entry["hour"]
+        minute = entry["minute"]
+        # TFL timetable API can return hours >= 24 for services running past midnight
+        # on the same service day (e.g. hour=25 means clock time 01:xx).
+        # Normalise to a valid 0-23 hour so datetime.replace() doesn't raise.
         scheduled_time = predicted_arrival.replace(
-            hour=entry["hour"],
-            minute=entry["minute"],
+            hour=hour % 24,
+            minute=minute,
             second=0,
             microsecond=0,
         )

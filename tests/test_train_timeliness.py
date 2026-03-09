@@ -182,6 +182,18 @@ class TestFindNearestScheduledTime(unittest.TestCase):
         result = find_nearest_scheduled_time(predicted, self.timetable)
         self.assertIsNone(result)  # Beyond 15-minute matching window
 
+    def test_hour_over_24(self):
+        # TFL timetable API can return hour >= 24 for services past midnight
+        # hour=25, minute=15 represents clock time 01:15 (25 % 24 = 1)
+        timetable = [{"hour": 25, "minute": 15}]
+        predicted = datetime(2026, 3, 9, 1, 15, 30, tzinfo=timezone.utc)
+        result = find_nearest_scheduled_time(predicted, timetable)
+        self.assertIsNotNone(result)
+        scheduled, variance = result
+        self.assertEqual(scheduled.hour, 1)
+        self.assertEqual(scheduled.minute, 15)
+        self.assertEqual(variance, 30)  # 30 seconds late
+
 
 class TestCollectTimelinessSnapshot(unittest.TestCase):
     """Tests for snapshot collection with mocked API calls."""
