@@ -125,7 +125,7 @@
     <div class="header">
       <h1>🚇 TFL Train Timeliness Monitor</h1>
       <div class="subtitle">Real-time on-time performance tracking for London Underground</div>
-      <div class="timestamp">Last updated: 2026-03-09 23:40 UTC | Threshold: ±120s</div>
+      <div class="timestamp">Last updated: 2026-03-10 01:52 UTC | Threshold: ±120s</div>
     </div>
 
     <div class="methodology">
@@ -140,28 +140,28 @@
     <div class="line-card" style="border-left: 5px solid #9B0056">
       <div class="line-header">
         <div class="line-name" style="color: #9B0056">Metropolitan Line</div>
-        <div class="perf-good">✅ 80.0% On Time</div>
+        <div class="perf-poor">❌ 0% On Time</div>
       </div>
 
       <div class="metrics-row">
         <div class="metric">
-          <div class="metric-value">25</div>
+          <div class="metric-value">0</div>
           <div class="metric-label">Total Predictions</div>
         </div>
         <div class="metric">
-          <div class="metric-value good">20</div>
+          <div class="metric-value good">0</div>
           <div class="metric-label">On Time (±120s)</div>
         </div>
         <div class="metric">
-          <div class="metric-value early-val">3</div>
+          <div class="metric-value early-val">0</div>
           <div class="metric-label">Early</div>
         </div>
         <div class="metric">
-          <div class="metric-value poor">2</div>
+          <div class="metric-value poor">0</div>
           <div class="metric-label">Late</div>
         </div>
         <div class="metric">
-          <div class="metric-value">12s late</div>
+          <div class="metric-value">On time</div>
           <div class="metric-label">Avg Variance</div>
         </div>
       </div>
@@ -173,17 +173,17 @@
   <rect x="2" y="2" width="296" height="9.199999999999996" fill="#e8f5e9" opacity="0.3"/>
   <rect x="2" y="11.199999999999996" width="296" height="9.200000000000006" fill="#fff3e0" opacity="0.3"/>
   <rect x="2" y="20.400000000000002" width="296" height="27.599999999999998" fill="#ffebee" opacity="0.3"/>
-  <polygon points="2.0,12.2 76.0,11.2 150.0,12.4 224.0,11.6 298.0,11.2 298.0,48.0 2.0,48.0" fill="#9B0056" opacity="0.15"/>
-  <polyline points="2.0,12.2 76.0,11.2 150.0,12.4 224.0,11.6 298.0,11.2" fill="none" stroke="#9B0056" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="298.0" cy="11.2" r="3" fill="#9B0056"/>
+  <polygon points="2.0,48.0 298.0,48.0 2.0,48.0" fill="#9B0056" opacity="0.15"/>
+  <polyline points="2.0,48.0" fill="none" stroke="#9B0056" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="2.0" cy="48.0" r="3" fill="#9B0056"/>
 </svg>
         </div>
         <div class="chart-container">
           <div class="chart-title">Distribution: Early | On Time | Late</div>
           <svg width="300" height="20" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="36.0" height="20" fill="#2196F3" rx="2"/>
-  <rect x="36.0" y="0" width="240.0" height="20" fill="#4CAF50" rx="0"/>
-  <rect x="276.0" y="0" width="24.0" height="20" fill="#f44336" rx="2"/>
+  <rect x="0" y="0" width="0.0" height="20" fill="#2196F3" rx="2"/>
+  <rect x="0.0" y="0" width="0.0" height="20" fill="#4CAF50" rx="0"/>
+  <rect x="0.0" y="0" width="0.0" height="20" fill="#f44336" rx="2"/>
 </svg>
           <div class="legend">
             <span class="legend-item"><span class="dot early-dot"></span> Early</span>
@@ -211,21 +211,48 @@
             
             <tr>
               <td>Baker Street</td>
-              <td>6</td>
-              <td class="good">83.3%</td>
-              <td>1</td>
-              <td>5</td>
               <td>0</td>
-              <td>18s early</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
+            </tr>
+            <tr>
+              <td>Finchley Road</td>
+              <td>0</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
+            </tr>
+            <tr>
+              <td>Moor Park</td>
+              <td>0</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
+            </tr>
+            <tr>
+              <td>Harrow-on-the-Hill</td>
+              <td>0</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
             </tr>
             <tr>
               <td>King's Cross St. Pancras</td>
-              <td>5</td>
-              <td class="good">80.0%</td>
               <td>0</td>
-              <td>4</td>
-              <td>1</td>
-              <td>22s late</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
             </tr>
           </tbody>
         </table>
@@ -234,28 +261,28 @@
     <div class="line-card" style="border-left: 5px solid #B36305">
       <div class="line-header">
         <div class="line-name" style="color: #B36305">Bakerloo Line</div>
-        <div class="perf-moderate">⚠️ 75.0% On Time</div>
+        <div class="perf-poor">❌ 0% On Time</div>
       </div>
 
       <div class="metrics-row">
         <div class="metric">
-          <div class="metric-value">16</div>
+          <div class="metric-value">0</div>
           <div class="metric-label">Total Predictions</div>
         </div>
         <div class="metric">
-          <div class="metric-value good">12</div>
+          <div class="metric-value good">0</div>
           <div class="metric-label">On Time (±120s)</div>
         </div>
         <div class="metric">
-          <div class="metric-value early-val">2</div>
+          <div class="metric-value early-val">0</div>
           <div class="metric-label">Early</div>
         </div>
         <div class="metric">
-          <div class="metric-value poor">2</div>
+          <div class="metric-value poor">0</div>
           <div class="metric-label">Late</div>
         </div>
         <div class="metric">
-          <div class="metric-value">2s early</div>
+          <div class="metric-value">On time</div>
           <div class="metric-label">Avg Variance</div>
         </div>
       </div>
@@ -267,17 +294,17 @@
   <rect x="2" y="2" width="296" height="9.199999999999996" fill="#e8f5e9" opacity="0.3"/>
   <rect x="2" y="11.199999999999996" width="296" height="9.200000000000006" fill="#fff3e0" opacity="0.3"/>
   <rect x="2" y="20.400000000000002" width="296" height="27.599999999999998" fill="#ffebee" opacity="0.3"/>
-  <polygon points="2.0,13.5 76.0,12.6 150.0,15.2 224.0,14.3 298.0,13.5 298.0,48.0 2.0,48.0" fill="#B36305" opacity="0.15"/>
-  <polyline points="2.0,13.5 76.0,12.6 150.0,15.2 224.0,14.3 298.0,13.5" fill="none" stroke="#B36305" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="298.0" cy="13.5" r="3" fill="#B36305"/>
+  <polygon points="2.0,48.0 298.0,48.0 2.0,48.0" fill="#B36305" opacity="0.15"/>
+  <polyline points="2.0,48.0" fill="none" stroke="#B36305" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="2.0" cy="48.0" r="3" fill="#B36305"/>
 </svg>
         </div>
         <div class="chart-container">
           <div class="chart-title">Distribution: Early | On Time | Late</div>
           <svg width="300" height="20" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="37.5" height="20" fill="#2196F3" rx="2"/>
-  <rect x="37.5" y="0" width="225.0" height="20" fill="#4CAF50" rx="0"/>
-  <rect x="262.5" y="0" width="37.5" height="20" fill="#f44336" rx="2"/>
+  <rect x="0" y="0" width="0.0" height="20" fill="#2196F3" rx="2"/>
+  <rect x="0.0" y="0" width="0.0" height="20" fill="#4CAF50" rx="0"/>
+  <rect x="0.0" y="0" width="0.0" height="20" fill="#f44336" rx="2"/>
 </svg>
           <div class="legend">
             <span class="legend-item"><span class="dot early-dot"></span> Early</span>
@@ -304,22 +331,49 @@
           <tbody>
             
             <tr>
-              <td>Embankment</td>
-              <td>4</td>
-              <td class="moderate">75.0%</td>
+              <td>Paddington</td>
               <td>0</td>
-              <td>3</td>
-              <td>1</td>
-              <td>6s early</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
             </tr>
             <tr>
-              <td>Paddington</td>
-              <td>3</td>
-              <td class="good">100.0%</td>
-              <td>1</td>
-              <td>2</td>
+              <td>Oxford Circus</td>
               <td>0</td>
-              <td>24s early</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
+            </tr>
+            <tr>
+              <td>Waterloo</td>
+              <td>0</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
+            </tr>
+            <tr>
+              <td>Embankment</td>
+              <td>0</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
+            </tr>
+            <tr>
+              <td>Elephant & Castle</td>
+              <td>0</td>
+              <td class="poor">0%</td>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+              <td>On time</td>
             </tr>
           </tbody>
         </table>
@@ -328,28 +382,28 @@
     <div class="line-card" style="border-left: 5px solid #F3A9BB">
       <div class="line-header">
         <div class="line-name" style="color: #F3A9BB">Hammersmith & City Line</div>
-        <div class="perf-moderate">⚠️ 71.4% On Time</div>
+        <div class="perf-poor">❌ 0% On Time</div>
       </div>
 
       <div class="metrics-row">
         <div class="metric">
-          <div class="metric-value">14</div>
+          <div class="metric-value">0</div>
           <div class="metric-label">Total Predictions</div>
         </div>
         <div class="metric">
-          <div class="metric-value good">10</div>
+          <div class="metric-value good">0</div>
           <div class="metric-label">On Time (±120s)</div>
         </div>
         <div class="metric">
-          <div class="metric-value early-val">2</div>
+          <div class="metric-value early-val">0</div>
           <div class="metric-label">Early</div>
         </div>
         <div class="metric">
-          <div class="metric-value poor">2</div>
+          <div class="metric-value poor">0</div>
           <div class="metric-label">Late</div>
         </div>
         <div class="metric">
-          <div class="metric-value">18s late</div>
+          <div class="metric-value">On time</div>
           <div class="metric-label">Avg Variance</div>
         </div>
       </div>
@@ -361,17 +415,17 @@
   <rect x="2" y="2" width="296" height="9.199999999999996" fill="#e8f5e9" opacity="0.3"/>
   <rect x="2" y="11.199999999999996" width="296" height="9.200000000000006" fill="#fff3e0" opacity="0.3"/>
   <rect x="2" y="20.400000000000002" width="296" height="27.599999999999998" fill="#ffebee" opacity="0.3"/>
-  <polygon points="2.0,15.8 76.0,14.6 150.0,13.5 224.0,16.2 298.0,15.2 298.0,48.0 2.0,48.0" fill="#F3A9BB" opacity="0.15"/>
-  <polyline points="2.0,15.8 76.0,14.6 150.0,13.5 224.0,16.2 298.0,15.2" fill="none" stroke="#F3A9BB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="298.0" cy="15.2" r="3" fill="#F3A9BB"/>
+  <polygon points="2.0,48.0 298.0,48.0 2.0,48.0" fill="#F3A9BB" opacity="0.15"/>
+  <polyline points="2.0,48.0" fill="none" stroke="#F3A9BB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="2.0" cy="48.0" r="3" fill="#F3A9BB"/>
 </svg>
         </div>
         <div class="chart-container">
           <div class="chart-title">Distribution: Early | On Time | Late</div>
           <svg width="300" height="20" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="42.9" height="20" fill="#2196F3" rx="2"/>
-  <rect x="42.9" y="0" width="214.3" height="20" fill="#4CAF50" rx="0"/>
-  <rect x="257.1" y="0" width="42.9" height="20" fill="#f44336" rx="2"/>
+  <rect x="0" y="0" width="0.0" height="20" fill="#2196F3" rx="2"/>
+  <rect x="0.0" y="0" width="0.0" height="20" fill="#4CAF50" rx="0"/>
+  <rect x="0.0" y="0" width="0.0" height="20" fill="#f44336" rx="2"/>
 </svg>
           <div class="legend">
             <span class="legend-item"><span class="dot early-dot"></span> Early</span>
@@ -396,25 +450,7 @@
             </tr>
           </thead>
           <tbody>
-            
-            <tr>
-              <td>Hammersmith</td>
-              <td>4</td>
-              <td class="moderate">75.0%</td>
-              <td>0</td>
-              <td>3</td>
-              <td>1</td>
-              <td>16s late</td>
-            </tr>
-            <tr>
-              <td>Liverpool Street</td>
-              <td>4</td>
-              <td class="moderate">75.0%</td>
-              <td>0</td>
-              <td>3</td>
-              <td>1</td>
-              <td>18s late</td>
-            </tr>
+            <tr><td colspan="7">No current data available</td></tr>
           </tbody>
         </table>
       </details>
@@ -422,28 +458,28 @@
     <div class="line-card" style="border-left: 5px solid #FFD300">
       <div class="line-header">
         <div class="line-name" style="color: #FFD300">Circle Line</div>
-        <div class="perf-moderate">⚠️ 69.2% On Time</div>
+        <div class="perf-poor">❌ 0% On Time</div>
       </div>
 
       <div class="metrics-row">
         <div class="metric">
-          <div class="metric-value">13</div>
+          <div class="metric-value">0</div>
           <div class="metric-label">Total Predictions</div>
         </div>
         <div class="metric">
-          <div class="metric-value good">9</div>
+          <div class="metric-value good">0</div>
           <div class="metric-label">On Time (±120s)</div>
         </div>
         <div class="metric">
-          <div class="metric-value early-val">1</div>
+          <div class="metric-value early-val">0</div>
           <div class="metric-label">Early</div>
         </div>
         <div class="metric">
-          <div class="metric-value poor">3</div>
+          <div class="metric-value poor">0</div>
           <div class="metric-label">Late</div>
         </div>
         <div class="metric">
-          <div class="metric-value">23s late</div>
+          <div class="metric-value">On time</div>
           <div class="metric-label">Avg Variance</div>
         </div>
       </div>
@@ -455,17 +491,17 @@
   <rect x="2" y="2" width="296" height="9.199999999999996" fill="#e8f5e9" opacity="0.3"/>
   <rect x="2" y="11.199999999999996" width="296" height="9.200000000000006" fill="#fff3e0" opacity="0.3"/>
   <rect x="2" y="20.400000000000002" width="296" height="27.599999999999998" fill="#ffebee" opacity="0.3"/>
-  <polygon points="2.0,17.3 76.0,15.8 150.0,18.7 224.0,17.3 298.0,16.2 298.0,48.0 2.0,48.0" fill="#FFD300" opacity="0.15"/>
-  <polyline points="2.0,17.3 76.0,15.8 150.0,18.7 224.0,17.3 298.0,16.2" fill="none" stroke="#FFD300" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="298.0" cy="16.2" r="3" fill="#FFD300"/>
+  <polygon points="2.0,48.0 298.0,48.0 2.0,48.0" fill="#FFD300" opacity="0.15"/>
+  <polyline points="2.0,48.0" fill="none" stroke="#FFD300" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="2.0" cy="48.0" r="3" fill="#FFD300"/>
 </svg>
         </div>
         <div class="chart-container">
           <div class="chart-title">Distribution: Early | On Time | Late</div>
           <svg width="300" height="20" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="23.1" height="20" fill="#2196F3" rx="2"/>
-  <rect x="23.1" y="0" width="207.7" height="20" fill="#4CAF50" rx="0"/>
-  <rect x="230.8" y="0" width="69.2" height="20" fill="#f44336" rx="2"/>
+  <rect x="0" y="0" width="0.0" height="20" fill="#2196F3" rx="2"/>
+  <rect x="0.0" y="0" width="0.0" height="20" fill="#4CAF50" rx="0"/>
+  <rect x="0.0" y="0" width="0.0" height="20" fill="#f44336" rx="2"/>
 </svg>
           <div class="legend">
             <span class="legend-item"><span class="dot early-dot"></span> Early</span>
@@ -490,25 +526,7 @@
             </tr>
           </thead>
           <tbody>
-            
-            <tr>
-              <td>Embankment</td>
-              <td>3</td>
-              <td class="moderate">66.7%</td>
-              <td>0</td>
-              <td>2</td>
-              <td>1</td>
-              <td>26s late</td>
-            </tr>
-            <tr>
-              <td>Liverpool Street</td>
-              <td>3</td>
-              <td class="moderate">66.7%</td>
-              <td>0</td>
-              <td>2</td>
-              <td>1</td>
-              <td>22s late</td>
-            </tr>
+            <tr><td colspan="7">No current data available</td></tr>
           </tbody>
         </table>
       </details>
