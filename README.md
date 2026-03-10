@@ -114,6 +114,8 @@ python train_timeliness.py
 
 This creates `timeliness_data/` (JSON snapshots) and `timeliness_report.html`.
 
+A sample `timeliness_report.html` generated from synthetic timetable/prediction data is checked into the repo for quick reference to the layout and metrics. Running `python train_timeliness.py` against the live TfL API will regenerate the report and populate `timeliness_data/` with real snapshots.
+
 ### GitHub Actions workflow
 
 The workflow `.github/workflows/train-timeliness.yml` runs automatically:
