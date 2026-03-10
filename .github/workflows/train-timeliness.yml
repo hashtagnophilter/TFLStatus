@@ -7,9 +7,11 @@ on:
   # Allow manual trigger for testing
   workflow_dispatch:
 
-# Allow the workflow to write to the repository (for committing data + report)
+# Allow the workflow to write to the repository and deploy GitHub Pages
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   collect-timeliness:
@@ -40,3 +42,25 @@ jobs:
           git add timeliness_data/ timeliness_report.html
           git diff --cached --quiet || git commit -m "📊 Timeliness snapshot $(date -u +'%Y-%m-%d %H:%M UTC')"
           git push
+
+      - name: Prepare Pages content
+        run: |
+          mkdir -p _site
+          cp timeliness_report.html _site/index.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy-pages:
+    needs: collect-timeliness
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
