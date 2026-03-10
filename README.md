@@ -116,13 +116,23 @@ This creates `timeliness_data/` (JSON snapshots) and `timeliness_report.html`.
 
 A sample `timeliness_report.html` generated from synthetic timetable/prediction data is checked into the repo for quick reference to the layout and metrics. Running `python train_timeliness.py` against the live TfL API will regenerate the report and populate `timeliness_data/` with real snapshots.
 
+### Live dashboard
+
+The report is published as a live webpage via GitHub Pages:
+
+**[https://hashtagnophilter.github.io/TFLStatus/](https://hashtagnophilter.github.io/TFLStatus/)**
+
+It updates automatically every 5 minutes during operating hours (Mon–Fri, 8 AM–midnight UTC).
+
+> **One-time setup** (repo owner only): Go to **Settings → Pages** and set the source to **"GitHub Actions"**. The next workflow run will deploy the page automatically.
+
 ### GitHub Actions workflow
 
 The workflow `.github/workflows/train-timeliness.yml` runs automatically:
 
 - **Schedule**: Every 5 minutes, 8 AM–midnight UTC, Monday–Friday
 - **Manual trigger**: Available via `workflow_dispatch`
-- Collects a snapshot, generates the HTML report, and commits results back to the repo
+- Collects a snapshot, generates the HTML report, commits results back to the repo, and deploys the live dashboard to GitHub Pages
 
 ### Running tests
 
