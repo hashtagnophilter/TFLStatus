@@ -1,0 +1,577 @@
+[
+  {
+    "line_id": "metropolitan",
+    "line_name": "Metropolitan",
+    "colour": "#9B0056",
+    "stations": {
+      "940GZZLUBST": {
+        "name": "Baker Street",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUFYR": {
+        "name": "Finchley Road",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUMSP": {
+        "name": "Moor Park",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUHOH": {
+        "name": "Harrow-on-the-Hill",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUKSX": {
+        "name": "King's Cross St. Pancras",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      }
+    },
+    "timestamp": "2026-03-11T19:05:12.835506+00:00"
+  },
+  {
+    "line_id": "bakerloo",
+    "line_name": "Bakerloo",
+    "colour": "#B36305",
+    "stations": {
+      "940GZZLUPAC": {
+        "name": "Paddington",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUOXC": {
+        "name": "Oxford Circus",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUWLO": {
+        "name": "Waterloo",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUEMB": {
+        "name": "Embankment",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUEAC": {
+        "name": "Elephant & Castle",
+        "total_predictions": 16,
+        "on_time": 16,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 100.0,
+        "avg_variance_secs": 1.1,
+        "variances": [
+          {
+            "vehicle_id": "201",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:26:53+00:00",
+            "scheduled_time": "2026-03-11T19:26:00+00:00",
+            "variance_seconds": 53,
+            "time_to_station": 1308,
+            "platform": "Northbound - Platform 4",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "202",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:15:53+00:00",
+            "scheduled_time": "2026-03-11T19:17:00+00:00",
+            "variance_seconds": -67,
+            "time_to_station": 648,
+            "platform": "Northbound - Platform 4",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "242",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:22:54+00:00",
+            "scheduled_time": "2026-03-11T19:23:00+00:00",
+            "variance_seconds": -6,
+            "time_to_station": 1069,
+            "platform": "Northbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "222",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:12:54+00:00",
+            "scheduled_time": "2026-03-11T19:14:00+00:00",
+            "variance_seconds": -66,
+            "time_to_station": 469,
+            "platform": "Northbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "205",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:09:53+00:00",
+            "scheduled_time": "2026-03-11T19:10:00+00:00",
+            "variance_seconds": -7,
+            "time_to_station": 288,
+            "platform": "Northbound - Platform 4",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "201",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:26:54+00:00",
+            "scheduled_time": "2026-03-11T19:26:00+00:00",
+            "variance_seconds": 54,
+            "time_to_station": 1309,
+            "platform": "Northbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "221",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:24:53+00:00",
+            "scheduled_time": "2026-03-11T19:25:00+00:00",
+            "variance_seconds": -7,
+            "time_to_station": 1188,
+            "platform": "Northbound - Platform 4",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "227",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:06:54+00:00",
+            "scheduled_time": "2026-03-11T19:06:00+00:00",
+            "variance_seconds": 54,
+            "time_to_station": 109,
+            "platform": "Northbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "207",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:32:53+00:00",
+            "scheduled_time": "2026-03-11T19:32:00+00:00",
+            "variance_seconds": 53,
+            "time_to_station": 1668,
+            "platform": "Northbound - Platform 4",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "207",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:32:54+00:00",
+            "scheduled_time": "2026-03-11T19:32:00+00:00",
+            "variance_seconds": 54,
+            "time_to_station": 1669,
+            "platform": "Northbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "242",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:22:53+00:00",
+            "scheduled_time": "2026-03-11T19:23:00+00:00",
+            "variance_seconds": -7,
+            "time_to_station": 1068,
+            "platform": "Northbound - Platform 4",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "202",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:15:54+00:00",
+            "scheduled_time": "2026-03-11T19:17:00+00:00",
+            "variance_seconds": -66,
+            "time_to_station": 649,
+            "platform": "Northbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "227",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:06:54+00:00",
+            "scheduled_time": "2026-03-11T19:06:00+00:00",
+            "variance_seconds": 54,
+            "time_to_station": 109,
+            "platform": "Northbound - Platform 4",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "205",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:09:54+00:00",
+            "scheduled_time": "2026-03-11T19:10:00+00:00",
+            "variance_seconds": -6,
+            "time_to_station": 289,
+            "platform": "Northbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "222",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:12:53+00:00",
+            "scheduled_time": "2026-03-11T19:14:00+00:00",
+            "variance_seconds": -67,
+            "time_to_station": 468,
+            "platform": "Northbound - Platform 4",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "221",
+            "destination": "Elephant & Castle Underground Station",
+            "predicted_arrival": "2026-03-11T19:24:54+00:00",
+            "scheduled_time": "2026-03-11T19:25:00+00:00",
+            "variance_seconds": -6,
+            "time_to_station": 1189,
+            "platform": "Northbound - Platform 3",
+            "direction": ""
+          }
+        ]
+      }
+    },
+    "timestamp": "2026-03-11T19:05:14.595588+00:00"
+  },
+  {
+    "line_id": "hammersmith-city",
+    "line_name": "Hammersmith & City",
+    "colour": "#F3A9BB",
+    "stations": {
+      "940GZZLUHSC": {
+        "name": "Hammersmith",
+        "total_predictions": 12,
+        "on_time": 3,
+        "early": 4,
+        "late": 5,
+        "on_time_pct": 25.0,
+        "avg_variance_secs": 48.8,
+        "variances": [
+          {
+            "vehicle_id": "213",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:06:54+00:00",
+            "scheduled_time": "2026-03-11T19:10:00+00:00",
+            "variance_seconds": -186,
+            "time_to_station": 139,
+            "platform": "Eastbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "215",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:24:54+00:00",
+            "scheduled_time": "2026-03-11T19:22:00+00:00",
+            "variance_seconds": 174,
+            "time_to_station": 1219,
+            "platform": "Eastbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "214",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:15:54+00:00",
+            "scheduled_time": "2026-03-11T19:12:00+00:00",
+            "variance_seconds": 234,
+            "time_to_station": 679,
+            "platform": "Eastbound - Platform 2",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "262",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:33:54+00:00",
+            "scheduled_time": "2026-03-11T19:32:00+00:00",
+            "variance_seconds": 114,
+            "time_to_station": 1759,
+            "platform": "Eastbound - Platform 1",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "213",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:06:54+00:00",
+            "scheduled_time": "2026-03-11T19:10:00+00:00",
+            "variance_seconds": -186,
+            "time_to_station": 139,
+            "platform": "Eastbound - Platform 2",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "262",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:33:54+00:00",
+            "scheduled_time": "2026-03-11T19:32:00+00:00",
+            "variance_seconds": 114,
+            "time_to_station": 1759,
+            "platform": "Eastbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "215",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:27:53+00:00",
+            "scheduled_time": "2026-03-11T19:30:00+00:00",
+            "variance_seconds": -127,
+            "time_to_station": 1398,
+            "platform": "Eastbound - Platform 1",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "215",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:24:54+00:00",
+            "scheduled_time": "2026-03-11T19:22:00+00:00",
+            "variance_seconds": 174,
+            "time_to_station": 1219,
+            "platform": "Eastbound - Platform 2",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "262",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:29:54+00:00",
+            "scheduled_time": "2026-03-11T19:30:00+00:00",
+            "variance_seconds": -6,
+            "time_to_station": 1519,
+            "platform": "Eastbound - Platform 2",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "213",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:06:53+00:00",
+            "scheduled_time": "2026-03-11T19:10:00+00:00",
+            "variance_seconds": -187,
+            "time_to_station": 138,
+            "platform": "Eastbound - Platform 1",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "214",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:15:53+00:00",
+            "scheduled_time": "2026-03-11T19:12:00+00:00",
+            "variance_seconds": 233,
+            "time_to_station": 678,
+            "platform": "Eastbound - Platform 1",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "214",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:15:54+00:00",
+            "scheduled_time": "2026-03-11T19:12:00+00:00",
+            "variance_seconds": 234,
+            "time_to_station": 679,
+            "platform": "Eastbound - Platform 3",
+            "direction": ""
+          }
+        ]
+      },
+      "940GZZLUBST": {
+        "name": "Baker Street",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUKSX": {
+        "name": "King's Cross St. Pancras",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLULVT": {
+        "name": "Liverpool Street",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUBKG": {
+        "name": "Barking",
+        "total_predictions": 6,
+        "on_time": 6,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 100.0,
+        "avg_variance_secs": 33.2,
+        "variances": [
+          {
+            "vehicle_id": "267",
+            "destination": "unknown",
+            "predicted_arrival": "2026-03-11T19:22:53+00:00",
+            "scheduled_time": "2026-03-11T19:23:00+00:00",
+            "variance_seconds": -7,
+            "time_to_station": 1098,
+            "platform": "Westbound - Platform 6",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "271",
+            "destination": "Barking Underground Station",
+            "predicted_arrival": "2026-03-11T19:20:53+00:00",
+            "scheduled_time": "2026-03-11T19:19:00+00:00",
+            "variance_seconds": 113,
+            "time_to_station": 978,
+            "platform": "Eastbound - Platform 2",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "270",
+            "destination": "Barking Underground Station",
+            "predicted_arrival": "2026-03-11T19:10:54+00:00",
+            "scheduled_time": "2026-03-11T19:12:00+00:00",
+            "variance_seconds": -66,
+            "time_to_station": 379,
+            "platform": "Eastbound - Platform 2",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "061",
+            "destination": "unknown",
+            "predicted_arrival": "2026-03-11T19:13:53+00:00",
+            "scheduled_time": "2026-03-11T19:12:00+00:00",
+            "variance_seconds": 113,
+            "time_to_station": 558,
+            "platform": "Westbound - Platform 3",
+            "direction": ""
+          },
+          {
+            "vehicle_id": "266",
+            "destination": "Hammersmith (H&C Line) Underground Station",
+            "predicted_arrival": "2026-03-11T19:11:53+00:00",
+            "scheduled_time": "2026-03-11T19:12:00+00:00",
+            "variance_seconds": -7,
+            "time_to_station": 438,
+            "platform": "Westbound - Platform 6",
+            "direction": "inbound"
+          },
+          {
+            "vehicle_id": "052",
+            "destination": "unknown",
+            "predicted_arrival": "2026-03-11T19:29:53+00:00",
+            "scheduled_time": "2026-03-11T19:29:00+00:00",
+            "variance_seconds": 53,
+            "time_to_station": 1518,
+            "platform": "Westbound - Platform 6",
+            "direction": ""
+          }
+        ]
+      }
+    },
+    "timestamp": "2026-03-11T19:05:15.865299+00:00"
+  },
+  {
+    "line_id": "circle",
+    "line_name": "Circle",
+    "colour": "#FFD300",
+    "stations": {
+      "940GZZLUHSC": {
+        "name": "Hammersmith",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUBST": {
+        "name": "Baker Street",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUKSX": {
+        "name": "King's Cross St. Pancras",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLULVT": {
+        "name": "Liverpool Street",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      },
+      "940GZZLUEMB": {
+        "name": "Embankment",
+        "total_predictions": 0,
+        "on_time": 0,
+        "early": 0,
+        "late": 0,
+        "on_time_pct": 0,
+        "avg_variance_secs": 0,
+        "variances": []
+      }
+    },
+    "timestamp": "2026-03-11T19:05:17.370318+00:00"
+  }
+]
