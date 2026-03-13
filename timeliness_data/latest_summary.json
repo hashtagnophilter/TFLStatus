@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-03-13T12:26:58.451197+00:00",
+  "timestamp": "2026-03-13T13:40:40.472638+00:00",
   "lines": {
     "metropolitan": {
       "name": "Metropolitan",
@@ -10,14 +10,14 @@
     "bakerloo": {
       "name": "Bakerloo",
       "on_time_pct": 98.7,
-      "total_predictions": 719,
-      "avg_variance_secs": 1.0
+      "total_predictions": 713,
+      "avg_variance_secs": 1.2
     },
     "hammersmith-city": {
       "name": "Hammersmith & City",
-      "on_time_pct": 51.1,
-      "total_predictions": 1182,
-      "avg_variance_secs": 1.4
+      "on_time_pct": 50.4,
+      "total_predictions": 1178,
+      "avg_variance_secs": 2.5
     },
     "circle": {
       "name": "Circle",
