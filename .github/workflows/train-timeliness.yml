@@ -1,0 +1,66 @@
+name: Train Timeliness
+
+on:
+  schedule:
+    - cron: "*/5 8-23 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate timeliness snapshot and report
+        run: python train_timeliness.py
+
+      - name: Commit updated timeliness artifacts
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add timeliness_data timeliness_report.html
+          if git diff --cached --quiet; then
+            echo "No timeliness artifact changes to commit."
+          else
+            git commit -m "Update timeliness report [skip ci]"
+            git push
+          fi
+
+      - name: Build Pages artifact
+        run: |
+          mkdir -p _site
+          cp web/index.html _site/index.html
+          cp timeliness_report.html _site/timeliness_report.html
+          cp timeliness_data/latest_summary.json _site/latest_summary.json
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy-pages:
+    needs: generate-report
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
