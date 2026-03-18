@@ -27,6 +27,7 @@ from train_timeliness import (
     generate_html_report,
     save_snapshot,
     load_historical_snapshots,
+    publish_artifacts_to_blob_storage,
     ON_TIME_THRESHOLD_SECONDS,
     MONITORED_LINES,
     DATA_DIR,
@@ -411,6 +412,52 @@ class TestSnapshotPersistence(unittest.TestCase):
             self.assertEqual(loaded, [])
         finally:
             train_timeliness.DATA_DIR = original_dir
+
+
+class TestBlobPublishing(unittest.TestCase):
+    """Tests for Azure Blob artifact publishing."""
+
+    @patch("train_timeliness.BlobServiceClient")
+    @patch("train_timeliness.ContentSettings")
+    def test_publish_artifacts_to_blob_storage(self, mock_content_settings, mock_blob_service):
+        service_client = MagicMock()
+        container_client = MagicMock()
+        mock_blob_service.from_connection_string.return_value = service_client
+        service_client.get_container_client.return_value = container_client
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            index_path = Path(tmpdir) / "index.html"
+            index_path.write_text("<html>dashboard</html>", encoding="utf-8")
+
+            uploaded = publish_artifacts_to_blob_storage(
+                connection_string="UseDevelopmentStorage=true",
+                report_html="<html>report</html>",
+                summary={"timestamp": "2026-03-07T09:00:00+00:00", "lines": {}},
+                current_snapshots=[{"line_id": "metropolitan"}],
+                snapshot_name="snapshot_20260307_090000.json",
+                index_template_path=index_path,
+            )
+
+        self.assertIn("timeliness_report.html", uploaded)
+        self.assertIn("latest_summary.json", uploaded)
+        self.assertIn("snapshots/snapshot_20260307_090000.json", uploaded)
+        self.assertIn("index.html", uploaded)
+
+        expected_blob_names = [c.args[0] for c in container_client.get_blob_client.call_args_list]
+        self.assertIn("timeliness_report.html", expected_blob_names)
+        self.assertIn("latest_summary.json", expected_blob_names)
+        self.assertIn("snapshots/snapshot_20260307_090000.json", expected_blob_names)
+        self.assertIn("index.html", expected_blob_names)
+
+    def test_publish_requires_connection_string(self):
+        with self.assertRaises(ValueError):
+            publish_artifacts_to_blob_storage(
+                connection_string="",
+                report_html="<html>report</html>",
+                summary={},
+                current_snapshots=[],
+                snapshot_name="snapshot.json",
+            )
 
 
 if __name__ == "__main__":

@@ -49,6 +49,10 @@ Set these in Azure Function App settings (and in `local.settings.json` for local
 
 - `STORAGE_CONNECTION_STRING` (required)
 - `TABLE_NAME` (optional; used by Metropolitan monitor, default `MetropolitanLineDelays`)
+- `TIMELINESS_STORAGE_CONNECTION_STRING` (optional; if omitted, timeliness publishing falls back to `STORAGE_CONNECTION_STRING`)
+- `TIMELINESS_STORAGE_CONTAINER` (optional; default `$web` for static website content)
+- `TIMELINESS_INTERVAL_MINUTES` (optional; default `2`)
+- `TIMELINESS_WEB_INDEX_TEMPLATE` (optional; default `web/index.html`)
 
 > Important: `local.settings.json` contains local secrets and should not be committed.
 
@@ -108,7 +112,7 @@ A separate module (`train_timeliness.py`) calculates real-time on-time performan
 ### Running locally
 
 ```bash
-pip install requests
+pip install -r requirements.txt
 python train_timeliness.py
 ```
 
@@ -116,23 +120,22 @@ This creates `timeliness_data/` (JSON snapshots) and `timeliness_report.html`.
 
 A sample `timeliness_report.html` generated from synthetic timetable/prediction data is checked into the repo for quick reference to the layout and metrics. Running `python train_timeliness.py` against the live TfL API will regenerate the report and populate `timeliness_data/` with real snapshots.
 
-### Live dashboard
+### Azure target architecture
 
-The report is published as a live webpage via GitHub Pages:
+- **Timer trigger function** `TrainTimelinessMonitor` runs every 2 minutes (`0 */2 * * * *`)
+- **Optional HTTP admin/debug endpoint**: `GET/POST /api/timeliness/admin`
+  - `POST` or `?refresh=1` triggers an immediate collection + publish
+- Timeliness artifacts are published to Azure Blob Storage (default `$web` container):
+  - `index.html` (storage-backed dashboard)
+  - `timeliness_report.html` (full report)
+  - `latest_summary.json` (dashboard data source)
+  - `snapshots/snapshot_YYYYMMDD_HHMMSS.json` (history snapshots)
 
-**[https://hashtagnophilter.github.io/TFLStatus/](https://hashtagnophilter.github.io/TFLStatus/)**
+The `web/index.html` page reads `latest_summary.json` directly from storage.
 
-It updates automatically every 5 minutes during operating hours (Mon–Fri, 8 AM–midnight UTC).
+### Azure setup guide for non-developers
 
-> **One-time setup** (repo owner only): Go to **Settings → Pages** and set the source to **"GitHub Actions"**. The next workflow run will deploy the page automatically.
-
-### GitHub Actions workflow
-
-The workflow `.github/workflows/train-timeliness.yml` runs automatically:
-
-- **Schedule**: Every 5 minutes, 8 AM–midnight UTC, Monday–Friday
-- **Manual trigger**: Available via `workflow_dispatch`
-- Collects a snapshot, generates the HTML report, commits results back to the repo, and deploys the live dashboard to GitHub Pages
+See `/AZURE_TIMELINESS_DEPLOYMENT_GUIDE.txt` for a full step-by-step setup guide (resource creation, VS Code deployment, app settings, and verification).
 
 ### Running tests
 

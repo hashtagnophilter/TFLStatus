@@ -6,6 +6,9 @@ from azure.data.tables import TableServiceClient, TableClient
 from datetime import datetime, timedelta
 import os
 from typing import Dict, Any
+from pathlib import Path
+
+from train_timeliness import run_collection, publish_artifacts_to_blob_storage
 
 
 app = func.FunctionApp()
@@ -695,5 +698,99 @@ def CircleMonitor(myTimer: func.TimerRequest) -> None:
     except Exception as e:
         logging.error(f'Unexpected error (Circle): {str(e)}')
         raise
+
+
+def _run_timeliness_collection_and_publish(trigger_source: str) -> Dict[str, Any]:
+    """Run timeliness collection and publish artifacts to blob storage."""
+    logging.info(f"Timeliness run triggered via {trigger_source}")
+
+    collection_payload = run_collection(return_payload=True)
+    summary = collection_payload["summary"]
+
+    blob_connection_string = os.environ.get("TIMELINESS_STORAGE_CONNECTION_STRING") or os.environ.get("STORAGE_CONNECTION_STRING", "")
+    blob_container = os.environ.get("TIMELINESS_STORAGE_CONTAINER", "$web")
+    index_template = Path(os.environ.get("TIMELINESS_WEB_INDEX_TEMPLATE", "web/index.html"))
+
+    uploaded_blobs = []
+    if blob_connection_string:
+        uploaded_blobs = publish_artifacts_to_blob_storage(
+            connection_string=blob_connection_string,
+            report_html=collection_payload["report_html"],
+            summary=summary,
+            current_snapshots=collection_payload["current_snapshots"],
+            snapshot_name=collection_payload["snapshot_name"],
+            container_name=blob_container,
+            index_template_path=index_template,
+        )
+    else:
+        logging.warning("TIMELINESS_STORAGE_CONNECTION_STRING/STORAGE_CONNECTION_STRING not set; skipping blob publishing")
+
+    return {
+        "trigger_source": trigger_source,
+        "timestamp": summary.get("timestamp"),
+        "line_count": len(summary.get("lines", {})),
+        "published_to_blob": bool(uploaded_blobs),
+        "uploaded_blobs": uploaded_blobs,
+    }
+
+
+@app.timer_trigger(schedule="0 */2 * * * *", arg_name="myTimer", run_on_startup=False, use_monitor=False)
+def TrainTimelinessMonitor(myTimer: func.TimerRequest) -> None:
+    """Collect timeliness data every 2 minutes and publish to storage-backed web artifacts."""
+    if myTimer.past_due:
+        logging.info("Timer is past due! (Train Timeliness)")
+
+    try:
+        result = _run_timeliness_collection_and_publish("timer")
+        logging.info(f"Timeliness monitor completed: {json.dumps(result)}")
+    except Exception as e:
+        logging.error(f"Unexpected error (Train Timeliness): {str(e)}")
+        raise
+
+
+@app.route(route="timeliness/admin", methods=["GET", "POST"], auth_level=func.AuthLevel.FUNCTION)
+def TrainTimelinessAdmin(req: func.HttpRequest) -> func.HttpResponse:
+    """Admin/debug endpoint for timeliness monitoring.
+
+    GET  /api/timeliness/admin            -> status and latest local summary (if available)
+    POST /api/timeliness/admin            -> force immediate collection + publish
+    GET  /api/timeliness/admin?refresh=1  -> force immediate collection + publish
+    """
+    refresh = req.params.get("refresh", "").lower() in ("1", "true", "yes")
+    should_run = req.method == "POST" or refresh
+
+    if should_run:
+        try:
+            result = _run_timeliness_collection_and_publish("http")
+            return func.HttpResponse(
+                json.dumps({"status": "ok", "action": "collection_run", "result": result}, indent=2),
+                mimetype="application/json",
+                status_code=200,
+            )
+        except Exception as e:
+            logging.error(f"Timeliness admin run failed: {e}")
+            return func.HttpResponse(
+                json.dumps({"status": "error", "message": str(e)}, indent=2),
+                mimetype="application/json",
+                status_code=500,
+            )
+
+    data_dir = Path(os.environ.get("DATA_DIR", "timeliness_data"))
+    summary_path = data_dir / "latest_summary.json"
+    latest_summary = {}
+    if summary_path.exists():
+        try:
+            latest_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            logging.warning(f"Invalid summary JSON at {summary_path}")
+
+    response_payload = {
+        "status": "ok",
+        "action": "status",
+        "hint": "POST this endpoint (or use ?refresh=1) to trigger an immediate run.",
+        "latest_summary_available": bool(latest_summary),
+        "latest_summary": latest_summary,
+    }
+    return func.HttpResponse(json.dumps(response_payload, indent=2), mimetype="application/json", status_code=200)
 
 # ...existing code...

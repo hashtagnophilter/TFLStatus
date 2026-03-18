@@ -25,6 +25,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+try:
+    from azure.storage.blob import BlobServiceClient, ContentSettings
+except ImportError:  # pragma: no cover - handled at runtime for Azure deployments
+    BlobServiceClient = None
+    ContentSettings = None
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -91,6 +97,18 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "timeliness_data"))
 
 # Output HTML file
 OUTPUT_HTML = Path(os.environ.get("OUTPUT_HTML", "timeliness_report.html"))
+
+def _read_collection_interval_minutes() -> int:
+    value = os.environ.get("TIMELINESS_INTERVAL_MINUTES", "2")
+    try:
+        parsed = int(value)
+        return parsed if parsed > 0 else 2
+    except ValueError:
+        return 2
+
+
+# Collection cadence (used by report text and Azure timer configuration docs)
+COLLECTION_INTERVAL_MINUTES = _read_collection_interval_minutes()
 
 
 def fetch_line_arrivals(line_id: str) -> List[Dict]:
@@ -692,7 +710,7 @@ def generate_html_report(all_metrics: Dict[str, Dict], current_snapshots: List[D
       Arrival predictions from the TFL API are compared against scheduled timetable data.
       Trains arriving within ±{ON_TIME_THRESHOLD_SECONDS} seconds of their scheduled time are
       counted as "on time". The sparkline shows on-time % over time across all monitored stations.
-      Data is collected every 5 minutes during operating hours.
+      Data is collected every {COLLECTION_INTERVAL_MINUTES} minutes during operating hours.
     </div>
 
     {''.join(lines_html) if lines_html else '<div class="no-data">No timeliness data available yet. Data collection starts after 8:00 AM on weekdays.</div>'}
@@ -708,15 +726,19 @@ def generate_html_report(all_metrics: Dict[str, Dict], current_snapshots: List[D
     return html
 
 
-def run_collection():
-    """Main entry point: collect data, save snapshot, generate report."""
+def run_collection(return_payload: bool = False):
+    """Main entry point: collect data, save snapshot, generate report.
+
+    If return_payload is True, includes in-memory report data for optional
+    Azure blob publishing.
+    """
     logger.info("Starting timeliness data collection...")
 
     # Collect current snapshots
     current_snapshots = collect_all_snapshots()
 
     # Save the snapshot
-    save_snapshot(current_snapshots)
+    snapshot_path = save_snapshot(current_snapshots)
 
     # Load historical data (including the one we just saved)
     history = load_historical_snapshots()
@@ -751,7 +773,81 @@ def run_collection():
         json.dump(summary, f, indent=2)
     logger.info(f"Summary saved: {summary_path}")
 
+    if return_payload:
+        return {
+            "summary": summary,
+            "report_html": html,
+            "current_snapshots": current_snapshots,
+            "snapshot_name": snapshot_path.name,
+        }
+
     return summary
+
+
+def publish_artifacts_to_blob_storage(
+    *,
+    connection_string: str,
+    report_html: str,
+    summary: Dict,
+    current_snapshots: List[Dict],
+    snapshot_name: str,
+    container_name: str = "$web",
+    index_template_path: Path = Path("web/index.html"),
+) -> List[str]:
+    """Publish timeliness artifacts to Azure Blob Storage for static website use."""
+    if not connection_string:
+        raise ValueError("Blob storage connection string is required")
+    if BlobServiceClient is None:
+        raise RuntimeError("azure-storage-blob is required to publish artifacts")
+
+    service_client = BlobServiceClient.from_connection_string(connection_string)
+    container_client = service_client.get_container_client(container_name)
+    try:
+        container_client.create_container()
+    except Exception:
+        # Container already exists (or no-op based on account permissions)
+        pass
+
+    uploaded_blobs = []
+
+    report_blob = container_client.get_blob_client("timeliness_report.html")
+    report_blob.upload_blob(
+        report_html,
+        overwrite=True,
+        content_settings=ContentSettings(content_type="text/html; charset=utf-8") if ContentSettings else None,
+    )
+    uploaded_blobs.append("timeliness_report.html")
+
+    summary_blob = container_client.get_blob_client("latest_summary.json")
+    summary_blob.upload_blob(
+        json.dumps(summary, indent=2),
+        overwrite=True,
+        content_settings=ContentSettings(content_type="application/json; charset=utf-8") if ContentSettings else None,
+    )
+    uploaded_blobs.append("latest_summary.json")
+
+    snapshot_blob_name = f"snapshots/{snapshot_name}"
+    snapshot_blob = container_client.get_blob_client(snapshot_blob_name)
+    snapshot_blob.upload_blob(
+        json.dumps(current_snapshots, indent=2),
+        overwrite=True,
+        content_settings=ContentSettings(content_type="application/json; charset=utf-8") if ContentSettings else None,
+    )
+    uploaded_blobs.append(snapshot_blob_name)
+
+    if index_template_path.exists():
+        index_blob = container_client.get_blob_client("index.html")
+        index_blob.upload_blob(
+            index_template_path.read_text(encoding="utf-8"),
+            overwrite=True,
+            content_settings=ContentSettings(content_type="text/html; charset=utf-8") if ContentSettings else None,
+        )
+        uploaded_blobs.append("index.html")
+    else:
+        logger.warning(f"Web index template not found at {index_template_path}; skipping index upload")
+
+    logger.info(f"Published {len(uploaded_blobs)} blob artifacts to container '{container_name}'")
+    return uploaded_blobs
 
 
 if __name__ == "__main__":
