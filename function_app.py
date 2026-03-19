@@ -9,6 +9,9 @@ import os
 
 app = func.FunctionApp()
 
+from timeliness_function_app import bp
+app.register_blueprint(bp)
+
 
 @app.timer_trigger(schedule="0 */2 * * * *", arg_name="myTimer", run_on_startup=False, use_monitor=False) 
 def TFLMonitor(myTimer: func.TimerRequest) -> None:

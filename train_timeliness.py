@@ -98,6 +98,32 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "timeliness_data"))
 # Output HTML file
 OUTPUT_HTML = Path(os.environ.get("OUTPUT_HTML", "timeliness_report.html"))
 
+
+def _is_azure_functions_runtime() -> bool:
+    """Return True when running inside Azure Functions."""
+    return bool(os.environ.get("WEBSITE_INSTANCE_ID"))
+
+
+def _resolve_runtime_path(configured_path: Path) -> Path:
+    """Resolve configured paths safely for the current runtime.
+
+    Azure Functions mounts deployed app files under /home/site/wwwroot as read-only.
+    For relative paths in Azure runtime, redirect writes to /tmp.
+    """
+    if configured_path.is_absolute() or not _is_azure_functions_runtime():
+        return configured_path
+    return Path("/tmp") / configured_path
+
+
+def get_data_dir() -> Path:
+    """Get writable data directory for snapshots and summary files."""
+    return _resolve_runtime_path(DATA_DIR)
+
+
+def get_output_html_path() -> Path:
+    """Get writable report output path."""
+    return _resolve_runtime_path(OUTPUT_HTML)
+
 def _read_collection_interval_minutes() -> int:
     value = os.environ.get("TIMELINESS_INTERVAL_MINUTES", "2")
     try:
@@ -296,9 +322,10 @@ def collect_all_snapshots() -> List[Dict]:
 
 def save_snapshot(snapshots: List[Dict]) -> Path:
     """Save a snapshot to the data directory as a timestamped JSON file."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    data_dir = get_data_dir()
+    data_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filepath = DATA_DIR / f"snapshot_{timestamp}.json"
+    filepath = data_dir / f"snapshot_{timestamp}.json"
     with open(filepath, "w") as f:
         json.dump(snapshots, f, indent=2)
     logger.info(f"Saved snapshot to {filepath}")
@@ -310,10 +337,11 @@ def load_historical_snapshots(max_files: int = 50) -> List[List[Dict]]:
 
     Returns the most recent snapshots, sorted by time.
     """
-    if not DATA_DIR.exists():
+    data_dir = get_data_dir()
+    if not data_dir.exists():
         return []
 
-    files = sorted(DATA_DIR.glob("snapshot_*.json"), reverse=True)[:max_files]
+    files = sorted(data_dir.glob("snapshot_*.json"), reverse=True)[:max_files]
     files.reverse()  # Oldest first
 
     snapshots = []
@@ -750,10 +778,11 @@ def run_collection(return_payload: bool = False):
 
     # Generate HTML report
     html = generate_html_report(all_metrics, current_snapshots)
-    OUTPUT_HTML.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_HTML, "w") as f:
+    output_html_path = get_output_html_path()
+    output_html_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_html_path, "w") as f:
         f.write(html)
-    logger.info(f"Report generated: {OUTPUT_HTML}")
+    logger.info(f"Report generated: {output_html_path}")
 
     # Also save a summary JSON
     summary = {
@@ -768,7 +797,7 @@ def run_collection(return_payload: bool = False):
             "avg_variance_secs": metrics["overall_avg_variance"],
         }
 
-    summary_path = DATA_DIR / "latest_summary.json"
+    summary_path = get_data_dir() / "latest_summary.json"
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
     logger.info(f"Summary saved: {summary_path}")

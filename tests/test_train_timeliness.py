@@ -31,6 +31,8 @@ from train_timeliness import (
     ON_TIME_THRESHOLD_SECONDS,
     MONITORED_LINES,
     DATA_DIR,
+    get_data_dir,
+    get_output_html_path,
 )
 
 
@@ -412,6 +414,63 @@ class TestSnapshotPersistence(unittest.TestCase):
             self.assertEqual(loaded, [])
         finally:
             train_timeliness.DATA_DIR = original_dir
+
+
+class TestRuntimePathResolution(unittest.TestCase):
+    def test_local_runtime_keeps_relative_paths(self):
+        import train_timeliness
+        original_data = train_timeliness.DATA_DIR
+        original_output = train_timeliness.OUTPUT_HTML
+        original_website_id = os.environ.get("WEBSITE_INSTANCE_ID")
+        try:
+            os.environ.pop("WEBSITE_INSTANCE_ID", None)
+            train_timeliness.DATA_DIR = Path("timeliness_data")
+            train_timeliness.OUTPUT_HTML = Path("timeliness_report.html")
+            self.assertEqual(get_data_dir(), Path("timeliness_data"))
+            self.assertEqual(get_output_html_path(), Path("timeliness_report.html"))
+        finally:
+            train_timeliness.DATA_DIR = original_data
+            train_timeliness.OUTPUT_HTML = original_output
+            if original_website_id is not None:
+                os.environ["WEBSITE_INSTANCE_ID"] = original_website_id
+
+    def test_azure_runtime_redirects_relative_paths_to_tmp(self):
+        import train_timeliness
+        original_data = train_timeliness.DATA_DIR
+        original_output = train_timeliness.OUTPUT_HTML
+        original_website_id = os.environ.get("WEBSITE_INSTANCE_ID")
+        try:
+            os.environ["WEBSITE_INSTANCE_ID"] = "unit-test-instance"
+            train_timeliness.DATA_DIR = Path("timeliness_data")
+            train_timeliness.OUTPUT_HTML = Path("timeliness_report.html")
+            self.assertEqual(get_data_dir(), Path("/tmp/timeliness_data"))
+            self.assertEqual(get_output_html_path(), Path("/tmp/timeliness_report.html"))
+        finally:
+            train_timeliness.DATA_DIR = original_data
+            train_timeliness.OUTPUT_HTML = original_output
+            if original_website_id is None:
+                os.environ.pop("WEBSITE_INSTANCE_ID", None)
+            else:
+                os.environ["WEBSITE_INSTANCE_ID"] = original_website_id
+
+    def test_azure_runtime_keeps_absolute_paths(self):
+        import train_timeliness
+        original_data = train_timeliness.DATA_DIR
+        original_output = train_timeliness.OUTPUT_HTML
+        original_website_id = os.environ.get("WEBSITE_INSTANCE_ID")
+        try:
+            os.environ["WEBSITE_INSTANCE_ID"] = "unit-test-instance"
+            train_timeliness.DATA_DIR = Path("/tmp/custom_data")
+            train_timeliness.OUTPUT_HTML = Path("/tmp/custom_report.html")
+            self.assertEqual(get_data_dir(), Path("/tmp/custom_data"))
+            self.assertEqual(get_output_html_path(), Path("/tmp/custom_report.html"))
+        finally:
+            train_timeliness.DATA_DIR = original_data
+            train_timeliness.OUTPUT_HTML = original_output
+            if original_website_id is None:
+                os.environ.pop("WEBSITE_INSTANCE_ID", None)
+            else:
+                os.environ["WEBSITE_INSTANCE_ID"] = original_website_id
 
 
 class TestBlobPublishing(unittest.TestCase):
