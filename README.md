@@ -49,6 +49,8 @@ Set these in Azure Function App settings (and in `local.settings.json` for local
 
 - `STORAGE_CONNECTION_STRING` (required)
 - `TABLE_NAME` (optional; used by Metropolitan monitor, default `MetropolitanLineDelays`)
+- `TIMELINESS_BLOB_CONNECTION_STRING` (recommended for timeliness artifacts; if omitted, timeliness falls back to `STORAGE_CONNECTION_STRING`, then `AzureWebJobsStorage`)
+- `TIMELINESS_BLOB_CONTAINER` (optional; defaults to `$web`)
 
 > Important: `local.settings.json` contains local secrets and should not be committed.
 

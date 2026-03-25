@@ -46,7 +46,7 @@ MONITORED_LINES = {
         "stations": {
             "940GZZLUBST": "Baker Street",
             "940GZZLUFYR": "Finchley Road",
-            "940GZZLUMSP": "Moor Park",
+            "940GZZLUMPK": "Moor Park",
             "940GZZLUHOH": "Harrow-on-the-Hill",
             "940GZZLUKSX": "King's Cross St. Pancras",
         }
