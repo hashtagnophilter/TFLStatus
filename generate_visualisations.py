@@ -11,6 +11,13 @@ from collections import Counter, defaultdict
 from datetime import datetime, timedelta
 
 from azure.data.tables import TableServiceClient
+try:
+    from azure.core.exceptions import ResourceExistsError
+    from azure.storage.blob import BlobServiceClient, ContentSettings
+except ImportError:  # pragma: no cover - depends on optional publishing package availability
+    ResourceExistsError = None
+    BlobServiceClient = None
+    ContentSettings = None
 
 
 # ── Azure connection ────────────────────────────────────────────────────────
@@ -64,6 +71,8 @@ LINE_LABELS = {
     "hammersmith-city": "Hammersmith & City",
 }
 DISRUPTION_STATUSES = {"Minor Delays", "Severe Delays", "Part Suspended", "Suspended", "Part Closure"}
+DASHBOARD_DATA_FILE = "latest_dashboard_data.json"
+DASHBOARD_HTML_FILE = "tfl_status_dashboard_v2.html"
 
 
 def analyse_reliability(state_data):
@@ -1002,28 +1011,16 @@ new Chart(document.getElementById('peakOffpeak'), {{
 
 
 # ── HTML Generation (v2 – Clean Design System) ─────────────────────────────
-def generate_html_v2(
-    reliability, heatmap, correlation, causes, causes_by_line,
-    daily_disruption, line_daily, peak_offpeak, escalations,
-    streaks, weekly_trend
-):
-    all_days = sorted(daily_disruption.keys())
-    calendar_data = [{"date": d, "value": daily_disruption[d]} for d in all_days]
-    sorted_causes = sorted(causes.items(), key=lambda x: -x[1])
-    cause_labels = [c[0] for c in sorted_causes]
-    cause_values = [c[1] for c in sorted_causes]
-    all_weeks = sorted(set(w["week"] for line_weeks in weekly_trend.values() for w in line_weeks))
-
-    total_checks = sum(r["total_checks"] for r in reliability.values())
-    total_delays = sum(cause_values)
-
-    # Pre-compute KPI values (can't use dict literals in f-strings)
+def generate_html_v2(payload, data_file_name=DASHBOARD_DATA_FILE):
+    reliability = payload["reliability"]
+    total_checks = payload["totalChecks"]
+    total_delays = payload["totalDelays"]
     met_pct = reliability.get("metropolitan", {}).get("good_pct", 0)
     bak_pct = reliability.get("bakerloo", {}).get("good_pct", 0)
     cir_pct = reliability.get("circle", {}).get("good_pct", 0)
     hc_pct = reliability.get("hammersmith-city", {}).get("good_pct", 0)
-    date_from = all_days[0] if all_days else "—"
-    date_to = all_days[-1] if all_days else "—"
+    date_from = payload["dateFrom"]
+    date_to = payload["dateTo"]
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1038,10 +1035,6 @@ def generate_html_v2(
 <style>
   :root {{
     --primary: #3B82F6;
-    --secondary: #8B5CF6;
-    --success: #16A34A;
-    --warning: #D97706;
-    --danger: #DC2626;
     --surface: #FFFFFF;
     --surface-alt: #F9FAFB;
     --border: #E5E7EB;
@@ -1051,8 +1044,6 @@ def generate_html_v2(
     --text-muted: #9CA3AF;
     --radius: 8px;
     --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
-    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
-    --shadow-md: 0 4px 6px rgba(0,0,0,0.04), 0 2px 4px rgba(0,0,0,0.03);
     --met: #9B0056;
     --bak: #B36305;
     --cir: #D4A800;
@@ -1067,8 +1058,6 @@ def generate_html_v2(
     line-height: 1.5;
     overflow-x: hidden;
   }}
-
-  /* ── Header ──────────────────────────────────────── */
   .header {{
     background: var(--surface);
     border-bottom: 1px solid var(--border);
@@ -1114,8 +1103,6 @@ def generate_html_v2(
     font-weight: 500;
     color: var(--text);
   }}
-
-  /* ── Layout ──────────────────────────────────────── */
   .dashboard {{
     max-width: 1120px;
     margin: 0 auto;
@@ -1130,8 +1117,6 @@ def generate_html_v2(
   }}
   .row.cols-2 {{ grid-template-columns: 1fr 1fr; }}
   .row.cols-4 {{ grid-template-columns: repeat(4, 1fr); }}
-
-  /* ── Card ─────────────────────────────────────────── */
   .card {{
     background: var(--surface);
     border: 1px solid var(--border);
@@ -1156,8 +1141,6 @@ def generate_html_v2(
     width: 100% !important;
     max-height: 320px;
   }}
-
-  /* ── KPI cards ───────────────────────────────────── */
   .kpi {{
     background: var(--surface);
     border: 1px solid var(--border);
@@ -1176,7 +1159,7 @@ def generate_html_v2(
   .kpi.met::after {{ background: var(--met); }}
   .kpi.bak::after {{ background: var(--bak); }}
   .kpi.cir::after {{ background: var(--cir); }}
-  .kpi.hc::after  {{ background: var(--hc); }}
+  .kpi.hc::after {{ background: var(--hc); }}
   .kpi-label {{
     font-size: 12px;
     font-weight: 500;
@@ -1194,13 +1177,11 @@ def generate_html_v2(
   .kpi.met .kpi-value {{ color: var(--met); }}
   .kpi.bak .kpi-value {{ color: var(--bak); }}
   .kpi.cir .kpi-value {{ color: var(--cir); }}
-  .kpi.hc  .kpi-value {{ color: var(--hc); }}
+  .kpi.hc .kpi-value {{ color: var(--hc); }}
   .kpi-sub {{
     font-size: 12px;
     color: var(--text-muted);
   }}
-
-  /* ── Heatmap grid (1 col stack) ──────────────────── */
   .heatmap-stack {{
     display: flex;
     flex-direction: column;
@@ -1221,8 +1202,6 @@ def generate_html_v2(
     width: 100% !important;
     height: 100px !important;
   }}
-
-  /* ── Correlation table ───────────────────────────── */
   .corr-table {{
     width: 100%;
     border-collapse: collapse;
@@ -1244,8 +1223,6 @@ def generate_html_v2(
     font-family: 'Inconsolata', monospace;
     font-weight: 500;
   }}
-
-  /* ── Calendar heatmap ────────────────────────────── */
   .cal-wrap {{
     display: flex;
     gap: 3px;
@@ -1258,7 +1235,8 @@ def generate_html_v2(
     gap: 3px;
   }}
   .cal-cell {{
-    width: 18px; height: 18px;
+    width: 18px;
+    height: 18px;
     border-radius: 3px;
     position: relative;
     cursor: pointer;
@@ -1275,7 +1253,6 @@ def generate_html_v2(
     padding: 4px 8px;
     border-radius: 4px;
     font-size: 11px;
-    font-family: 'Roboto', sans-serif;
     white-space: nowrap;
     z-index: 10;
     pointer-events: none;
@@ -1289,11 +1266,10 @@ def generate_html_v2(
     color: var(--text-muted);
   }}
   .cal-swatch {{
-    width: 14px; height: 14px;
+    width: 14px;
+    height: 14px;
     border-radius: 3px;
   }}
-
-  /* ── Responsive ──────────────────────────────────── */
   @media (max-width: 768px) {{
     .header {{ padding: 24px 16px 20px; }}
     .dashboard {{ padding: 16px; gap: 16px; }}
@@ -1304,7 +1280,6 @@ def generate_html_v2(
 </style>
 </head>
 <body>
-
 <div class="header">
   <div class="header-inner">
     <h1>TFL <span>Line Status Intelligence</span></h1>
@@ -1317,10 +1292,8 @@ def generate_html_v2(
     </div>
   </div>
 </div>
-
 <div class="dashboard">
-
-  <!-- KPI Row -->
+  <div id="dashboardError" class="card" style="display:none;border-color:#FECACA;background:#FEF2F2;color:#991B1B"></div>
   <div class="row cols-4">
     <div class="kpi met">
       <div class="kpi-label">Metropolitan</div>
@@ -1343,8 +1316,6 @@ def generate_html_v2(
       <div class="kpi-sub">Service reliability</div>
     </div>
   </div>
-
-  <!-- Weekly Trend -->
   <div class="row">
     <div class="card">
       <h2>Disruption Trend by Week</h2>
@@ -1352,34 +1323,18 @@ def generate_html_v2(
       <canvas id="weeklyTrend"></canvas>
     </div>
   </div>
-
-  <!-- Heatmaps (stacked, single column, no horizontal scroll) -->
   <div class="row">
     <div class="card">
       <h2>Disruption Risk by Hour &amp; Day</h2>
       <div class="desc">Probability of disruption at each hour on each weekday. Darker cells indicate higher risk.</div>
       <div class="heatmap-stack">
-        <div class="heatmap-item">
-          <div class="hm-label" style="color:var(--met)">Metropolitan</div>
-          <canvas id="hmMet"></canvas>
-        </div>
-        <div class="heatmap-item">
-          <div class="hm-label" style="color:var(--bak)">Bakerloo</div>
-          <canvas id="hmBak"></canvas>
-        </div>
-        <div class="heatmap-item">
-          <div class="hm-label" style="color:var(--cir)">Circle</div>
-          <canvas id="hmCir"></canvas>
-        </div>
-        <div class="heatmap-item">
-          <div class="hm-label" style="color:var(--hc)">Hammersmith &amp; City</div>
-          <canvas id="hmHC"></canvas>
-        </div>
+        <div class="heatmap-item"><div class="hm-label" style="color:var(--met)">Metropolitan</div><canvas id="hmMet"></canvas></div>
+        <div class="heatmap-item"><div class="hm-label" style="color:var(--bak)">Bakerloo</div><canvas id="hmBak"></canvas></div>
+        <div class="heatmap-item"><div class="hm-label" style="color:var(--cir)">Circle</div><canvas id="hmCir"></canvas></div>
+        <div class="heatmap-item"><div class="hm-label" style="color:var(--hc)">Hammersmith &amp; City</div><canvas id="hmHC"></canvas></div>
       </div>
     </div>
   </div>
-
-  <!-- Two-column: Causes + Peak -->
   <div class="row cols-2">
     <div class="card">
       <h2>Root Cause Analysis</h2>
@@ -1392,8 +1347,6 @@ def generate_html_v2(
       <canvas id="peakOffpeak"></canvas>
     </div>
   </div>
-
-  <!-- Two-column: Correlation + Streaks -->
   <div class="row cols-2">
     <div class="card">
       <h2>Cross-Line Disruption Cascade</h2>
@@ -1406,8 +1359,6 @@ def generate_html_v2(
       <canvas id="streakDist"></canvas>
     </div>
   </div>
-
-  <!-- Calendar -->
   <div class="row">
     <div class="card">
       <h2>Daily Disruption Calendar</h2>
@@ -1424,8 +1375,6 @@ def generate_html_v2(
       </div>
     </div>
   </div>
-
-  <!-- Two-column: Escalation + Composition -->
   <div class="row cols-2">
     <div class="card">
       <h2>Severity Escalation Patterns</h2>
@@ -1438,315 +1387,146 @@ def generate_html_v2(
       <canvas id="composition"></canvas>
     </div>
   </div>
-
 </div>
-
 <script>
+const DATA_URL = {json.dumps(data_file_name)};
 const LINE_COLORS = {json.dumps(LINE_COLORS)};
 const LINE_LABELS = {json.dumps(LINE_LABELS)};
-const weeklyTrend = {json.dumps(weekly_trend)};
-const heatmapData = {json.dumps(heatmap)};
-const causeLabels = {json.dumps(cause_labels)};
-const causeValues = {json.dumps(cause_values)};
-const peakOffpeak = {json.dumps(peak_offpeak)};
-const correlation = {json.dumps(correlation)};
-const calendarData = {json.dumps(calendar_data)};
-const lineDailyData = {json.dumps({k: dict(v) for k, v in line_daily.items()})};
-const streakDist = {json.dumps({k: dict(v['distribution']) for k, v in streaks.items()})};
-const escalations = {json.dumps(escalations)};
-const reliability = {json.dumps(reliability)};
-const allWeeks = {json.dumps(all_weeks)};
+const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 
-/* Chart.js global defaults for Clean theme */
 Chart.defaults.color = '#6B7280';
 Chart.defaults.borderColor = '#F3F4F6';
 Chart.defaults.font.family = "'Roboto', sans-serif";
 Chart.defaults.font.size = 12;
 
-/* ── Weekly Trend ──────────────────────────────────────────── */
-new Chart(document.getElementById('weeklyTrend'), {{
-  type: 'line',
-  data: {{
-    labels: allWeeks.map(w => w.replace('2026-', '')),
-    datasets: Object.entries(weeklyTrend).map(([line, data]) => {{
-      const weekMap = Object.fromEntries(data.map(d => [d.week, d.pct]));
-      return {{
-        label: LINE_LABELS[line],
-        data: allWeeks.map(w => weekMap[w] || 0),
-        borderColor: LINE_COLORS[line],
-        backgroundColor: LINE_COLORS[line] + '18',
-        fill: false,
-        tension: 0.35,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        borderWidth: 2
-      }};
-    }})
-  }},
-  options: {{
-    responsive: true,
-    maintainAspectRatio: true,
-    plugins: {{
-      legend: {{ position: 'top', labels: {{ usePointStyle: true, pointStyle: 'circle', padding: 16, font: {{ size: 11 }} }} }},
-      tooltip: {{ backgroundColor: '#111827', titleFont: {{ size: 12 }}, bodyFont: {{ size: 12 }}, padding: 10, cornerRadius: 6, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' }} }}
-    }},
-    scales: {{
-      y: {{ title: {{ display: true, text: 'Disruption %', font: {{ size: 11 }} }}, beginAtZero: true, grid: {{ color: '#F3F4F6' }} }},
-      x: {{ grid: {{ display: false }} }}
-    }}
-  }}
-}});
+function showError(message) {{
+  const errorCard = document.getElementById('dashboardError');
+  errorCard.textContent = message;
+  errorCard.style.display = 'block';
+}}
 
-/* ── Heatmaps (stacked) ───────────────────────────────────── */
-const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-function createHeatmap(canvasId, line) {{
-  const data = heatmapData[line] || [];
-  const maxVal = Math.max(...data.map(d => d.v), 1);
-  new Chart(document.getElementById(canvasId), {{
-    type: 'matrix',
+function renderDashboard(dashboardData) {{
+  const weeklyTrend = dashboardData.weeklyTrend || {{}};
+  const heatmapData = dashboardData.heatmapData || {{}};
+  const causeLabels = dashboardData.causeLabels || [];
+  const causeValues = dashboardData.causeValues || [];
+  const peakOffpeak = dashboardData.peakOffpeak || {{}};
+  const correlation = dashboardData.correlation || {{}};
+  const calendarData = dashboardData.calendarData || [];
+  const lineDailyData = dashboardData.lineDailyData || {{}};
+  const streakDist = dashboardData.streakDist || {{}};
+  const escalations = dashboardData.escalations || {{}};
+  const reliability = dashboardData.reliability || {{}};
+  const allWeeks = dashboardData.allWeeks || [];
+
+  new Chart(document.getElementById('weeklyTrend'), {{
+    type: 'line',
     data: {{
-      datasets: [{{
-        data: data.map(d => ({{ x: d.x - 4, y: d.y + 1, v: d.v }})),
-        backgroundColor: (ctx) => {{
-          const v = ctx.raw?.v || 0;
-          if (v === 0) return '#F9FAFB';
-          const t = Math.min(v / Math.max(maxVal * 0.7, 20), 1);
-          if (t < 0.25) return '#DBEAFE';
-          if (t < 0.45) return '#93C5FD';
-          if (t < 0.65) return '#3B82F6';
-          if (t < 0.8) return '#D97706';
-          return '#DC2626';
-        }},
-        borderColor: '#FFFFFF',
-        borderWidth: 1.5,
-        width: (ctx) => (ctx.chart.chartArea?.width || 300) / 19 - 1,
-        height: (ctx) => (ctx.chart.chartArea?.height || 80) / 5 - 1
-      }}]
+      labels: allWeeks.map(w => w.replace(/^\\d{{4}}-/, '')),
+      datasets: Object.entries(weeklyTrend).map(([line, data]) => {{
+        const weekMap = Object.fromEntries(data.map(d => [d.week, d.pct]));
+        return {{
+          label: LINE_LABELS[line],
+          data: allWeeks.map(w => weekMap[w] || 0),
+          borderColor: LINE_COLORS[line],
+          backgroundColor: LINE_COLORS[line] + '18',
+          fill: false,
+          tension: 0.35,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          borderWidth: 2
+        }};
+      }})
     }},
     options: {{
       responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: true,
       plugins: {{
-        legend: {{ display: false }},
-        tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, padding: 8, callbacks: {{ title: () => '', label: ctx => `${{dayLabels[ctx.raw.y - 1]}} ${{String(ctx.raw.x + 4).padStart(2, '0')}}:00 — ${{ctx.raw.v}}%` }} }}
+        legend: {{ position: 'top', labels: {{ usePointStyle: true, pointStyle: 'circle', padding: 16, font: {{ size: 11 }} }} }},
+        tooltip: {{ backgroundColor: '#111827', titleFont: {{ size: 12 }}, bodyFont: {{ size: 12 }}, padding: 10, cornerRadius: 6, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' }} }}
       }},
       scales: {{
-        x: {{
-          type: 'linear', offset: true,
-          min: 0.5, max: 19.5,
-          ticks: {{ stepSize: 2, font: {{ size: 10 }}, callback: v => String(v + 4).padStart(2, '0') }},
-          grid: {{ display: false }}
+        y: {{ title: {{ display: true, text: 'Disruption %', font: {{ size: 11 }} }}, beginAtZero: true, grid: {{ color: '#F3F4F6' }} }},
+        x: {{ grid: {{ display: false }} }}
+      }}
+    }}
+  }});
+
+  function createHeatmap(canvasId, line) {{
+    const data = heatmapData[line] || [];
+    const maxVal = Math.max(...data.map(d => d.v), 1);
+    new Chart(document.getElementById(canvasId), {{
+      type: 'matrix',
+      data: {{
+        datasets: [{{
+          data: data.map(d => ({{ x: d.x - 4, y: d.y + 1, v: d.v }})),
+          backgroundColor: (ctx) => {{
+            const v = ctx.raw?.v || 0;
+            if (v === 0) return '#F9FAFB';
+            const t = Math.min(v / Math.max(maxVal * 0.7, 20), 1);
+            if (t < 0.25) return '#DBEAFE';
+            if (t < 0.45) return '#93C5FD';
+            if (t < 0.65) return '#3B82F6';
+            if (t < 0.8) return '#D97706';
+            return '#DC2626';
+          }},
+          borderColor: '#FFFFFF',
+          borderWidth: 1.5,
+          width: (ctx) => (ctx.chart.chartArea?.width || 300) / 19 - 1,
+          height: (ctx) => (ctx.chart.chartArea?.height || 80) / 5 - 1
+        }}]
+      }},
+      options: {{
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {{
+          legend: {{ display: false }},
+          tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, padding: 8, callbacks: {{ title: () => '', label: ctx => `${{dayLabels[ctx.raw.y - 1]}} ${{String(ctx.raw.x + 4).padStart(2, '0')}}:00 — ${{ctx.raw.v}}%` }} }}
         }},
-        y: {{
-          type: 'linear', offset: true,
-          min: 0.5, max: 5.5,
-          ticks: {{ stepSize: 1, font: {{ size: 10 }}, callback: v => dayLabels[v - 1] || '' }},
-          grid: {{ display: false }}
+        scales: {{
+          x: {{
+            type: 'linear', offset: true, min: 0.5, max: 19.5,
+            ticks: {{ stepSize: 2, font: {{ size: 10 }}, callback: v => String(v + 4).padStart(2, '0') }},
+            grid: {{ display: false }}
+          }},
+          y: {{
+            type: 'linear', offset: true, min: 0.5, max: 5.5,
+            ticks: {{ stepSize: 1, font: {{ size: 10 }}, callback: v => dayLabels[v - 1] || '' }},
+            grid: {{ display: false }}
+          }}
         }}
       }}
-    }}
-  }});
-}}
-createHeatmap('hmMet', 'metropolitan');
-createHeatmap('hmBak', 'bakerloo');
-createHeatmap('hmCir', 'circle');
-createHeatmap('hmHC', 'hammersmith-city');
-
-/* ── Root Cause Analysis ───────────────────────────────────── */
-new Chart(document.getElementById('causes'), {{
-  type: 'bar',
-  data: {{
-    labels: causeLabels,
-    datasets: [{{
-      data: causeValues,
-      backgroundColor: '#3B82F6',
-      hoverBackgroundColor: '#2563EB',
-      borderRadius: 4,
-      borderSkipped: false,
-      barPercentage: 0.7
-    }}]
-  }},
-  options: {{
-    indexAxis: 'y',
-    responsive: true,
-    plugins: {{ legend: {{ display: false }}, tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, callbacks: {{ label: ctx => ctx.raw + ' incidents' }} }} }},
-    scales: {{ x: {{ beginAtZero: true, grid: {{ color: '#F3F4F6' }} }}, y: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 11 }} }} }} }}
-  }}
-}});
-
-/* ── Peak vs Off-Peak ──────────────────────────────────────── */
-new Chart(document.getElementById('peakOffpeak'), {{
-  type: 'bar',
-  data: {{
-    labels: Object.keys(LINE_LABELS).map(k => LINE_LABELS[k]),
-    datasets: [
-      {{ label: 'AM Peak (07–09)', data: Object.keys(LINE_LABELS).map(l => peakOffpeak[l]?.['AM Peak (07-09)'] || 0), backgroundColor: '#3B82F6', borderRadius: 4 }},
-      {{ label: 'PM Peak (17–19)', data: Object.keys(LINE_LABELS).map(l => peakOffpeak[l]?.['PM Peak (17-19)'] || 0), backgroundColor: '#D97706', borderRadius: 4 }},
-      {{ label: 'Off-Peak', data: Object.keys(LINE_LABELS).map(l => peakOffpeak[l]?.['Off-Peak'] || 0), backgroundColor: '#E5E7EB', borderRadius: 4 }}
-    ]
-  }},
-  options: {{
-    responsive: true,
-    plugins: {{
-      legend: {{ position: 'top', labels: {{ usePointStyle: true, pointStyle: 'circle', padding: 12, font: {{ size: 11 }} }} }},
-      tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' }} }}
-    }},
-    scales: {{ y: {{ title: {{ display: true, text: 'Disruption %', font: {{ size: 11 }} }}, beginAtZero: true, grid: {{ color: '#F3F4F6' }} }}, x: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }} }}
-  }}
-}});
-
-/* ── Correlation Table ─────────────────────────────────────── */
-(function() {{
-  const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
-  const table = document.getElementById('corrTable');
-  let h = '<thead><tr><th></th>' + lines.map(l => '<th>' + LINE_LABELS[l] + '</th>').join('') + '</tr></thead><tbody>';
-  lines.forEach(a => {{
-    h += '<tr><th style="text-align:left;font-weight:500">' + LINE_LABELS[a] + '</th>';
-    lines.forEach(b => {{
-      if (a === b) {{
-        h += '<td style="color:#D1D5DB">—</td>';
-      }} else {{
-        const val = correlation[a]?.[b] || 0;
-        const intensity = Math.min(val / 50, 1);
-        const r = Math.round(220 - intensity * 200);
-        const g = Math.round(220 - intensity * 180);
-        const bg = `rgb(${{r}},${{g}},220)`;
-        h += `<td style="background:rgba(220,38,38,${{intensity * 0.15}});font-weight:600">${{val}}%</td>`;
-      }}
     }});
-    h += '</tr>';
-  }});
-  h += '</tbody>';
-  table.innerHTML = h;
-}})();
+  }}
 
-/* ── Streak Distribution ───────────────────────────────────── */
-(function() {{
-  const bins = ['0', '10', '20', '30', '40', '50', '60', '90', '120'];
-  const binLabels = ['0–10', '10–20', '20–30', '30–40', '40–50', '50–60', '60–90', '90–120', '120+'];
-  const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
-  new Chart(document.getElementById('streakDist'), {{
+  createHeatmap('hmMet', 'metropolitan');
+  createHeatmap('hmBak', 'bakerloo');
+  createHeatmap('hmCir', 'circle');
+  createHeatmap('hmHC', 'hammersmith-city');
+
+  new Chart(document.getElementById('causes'), {{
     type: 'bar',
     data: {{
-      labels: binLabels,
-      datasets: lines.map(line => ({{
-        label: LINE_LABELS[line],
-        data: bins.map(b => streakDist[line]?.[b] || 0),
-        backgroundColor: LINE_COLORS[line] + 'cc',
-        borderRadius: 3
-      }}))
+      labels: causeLabels,
+      datasets: [{{ data: causeValues, backgroundColor: '#3B82F6', hoverBackgroundColor: '#2563EB', borderRadius: 4, borderSkipped: false, barPercentage: 0.7 }}]
     }},
     options: {{
-      responsive: true,
-      plugins: {{
-        legend: {{ position: 'top', labels: {{ usePointStyle: true, pointStyle: 'circle', padding: 12, font: {{ size: 11 }} }} }},
-        tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + ctx.raw + ' episodes' }} }}
-      }},
-      scales: {{
-        y: {{ title: {{ display: true, text: 'Episodes', font: {{ size: 11 }} }}, beginAtZero: true, grid: {{ color: '#F3F4F6' }} }},
-        x: {{ title: {{ display: true, text: 'Duration (minutes)', font: {{ size: 11 }} }}, grid: {{ display: false }} }}
-      }}
-    }}
-  }});
-}})();
-
-/* ── Calendar Heatmap ──────────────────────────────────────── */
-(function() {{
-  const container = document.getElementById('calendarHeatmap');
-  if (!calendarData.length) return;
-  const maxVal = Math.max(...calendarData.map(d => d.value));
-  const getColor = v => {{
-    if (v === 0) return '#F3F4F6';
-    const t = v / maxVal;
-    if (t < 0.15) return '#EFF6FF';
-    if (t < 0.3) return '#BFDBFE';
-    if (t < 0.5) return '#3B82F6';
-    if (t < 0.75) return '#D97706';
-    return '#DC2626';
-  }};
-  const weeks = {{}};
-  calendarData.forEach(d => {{
-    const dt = new Date(d.date);
-    const ws = new Date(dt);
-    ws.setDate(dt.getDate() - dt.getDay() + 1);
-    const key = ws.toISOString().slice(0, 10);
-    if (!weeks[key]) weeks[key] = [];
-    weeks[key].push(d);
-  }});
-  const wkKeys = Object.keys(weeks).sort();
-  let html = '';
-  wkKeys.forEach(wk => {{
-    html += '<div class="cal-col">';
-    const dayMap = Object.fromEntries(weeks[wk].map(d => [new Date(d.date).getDay(), d]));
-    for (let dow = 1; dow <= 5; dow++) {{
-      const d = dayMap[dow];
-      if (d) {{
-        const lineInfo = Object.entries(lineDailyData).map(([line, data]) => {{
-          const m = data[d.date] || 0;
-          return m > 0 ? LINE_LABELS[line] + ': ' + m + 'm' : '';
-        }}).filter(Boolean).join(', ');
-        html += `<div class="cal-cell" style="background:${{getColor(d.value)}}" data-tip="${{d.date}} — ${{d.value}}m (${{lineInfo || 'None'}})"></div>`;
-      }} else {{
-        html += '<div style="width:18px;height:18px"></div>';
-      }}
-    }}
-    html += '</div>';
-  }});
-  container.innerHTML = html;
-}})();
-
-/* ── Escalation Chart ──────────────────────────────────────── */
-(function() {{
-  const allTrans = {{}};
-  Object.entries(escalations).forEach(([line, trans]) => {{
-    Object.entries(trans).forEach(([t, count]) => {{
-      if (!allTrans[t]) allTrans[t] = {{}};
-      allTrans[t][line] = count;
-    }});
-  }});
-  const tLabels = Object.keys(allTrans);
-  const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
-  new Chart(document.getElementById('escalation'), {{
-    type: 'bar',
-    data: {{
-      labels: tLabels,
-      datasets: lines.map(line => ({{
-        label: LINE_LABELS[line],
-        data: tLabels.map(t => allTrans[t]?.[line] || 0),
-        backgroundColor: LINE_COLORS[line] + 'cc',
-        borderRadius: 3
-      }}))
-    }},
-    options: {{
-      responsive: true,
       indexAxis: 'y',
-      plugins: {{
-        legend: {{ position: 'top', labels: {{ usePointStyle: true, pointStyle: 'circle', padding: 12, font: {{ size: 11 }} }} }},
-        tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + ctx.raw }} }}
-      }},
-      scales: {{
-        x: {{ beginAtZero: true, stacked: true, grid: {{ color: '#F3F4F6' }} }},
-        y: {{ stacked: true, grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }}
-      }}
+      responsive: true,
+      plugins: {{ legend: {{ display: false }}, tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, callbacks: {{ label: ctx => ctx.raw + ' incidents' }} }} }},
+      scales: {{ x: {{ beginAtZero: true, grid: {{ color: '#F3F4F6' }} }}, y: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 11 }} }} }} }}
     }}
   }});
-}})();
 
-/* ── Disruption Composition ────────────────────────────────── */
-(function() {{
-  const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
-  const statuses = ['Minor Delays', 'Severe Delays', 'Part Suspended', 'Part Closure', 'Suspended'];
-  const colors = {{ 'Minor Delays': '#D97706', 'Severe Delays': '#DC2626', 'Part Suspended': '#B91C1C', 'Part Closure': '#8B5CF6', 'Suspended': '#7C2D12' }};
-  new Chart(document.getElementById('composition'), {{
+  new Chart(document.getElementById('peakOffpeak'), {{
     type: 'bar',
     data: {{
-      labels: lines.map(l => LINE_LABELS[l]),
-      datasets: statuses.map(s => ({{
-        label: s,
-        data: lines.map(l => reliability[l]?.breakdown?.[s] || 0),
-        backgroundColor: colors[s],
-        borderRadius: 2
-      }}))
+      labels: Object.keys(LINE_LABELS).map(k => LINE_LABELS[k]),
+      datasets: [
+        {{ label: 'AM Peak (07–09)', data: Object.keys(LINE_LABELS).map(l => peakOffpeak[l]?.['AM Peak (07-09)'] || 0), backgroundColor: '#3B82F6', borderRadius: 4 }},
+        {{ label: 'PM Peak (17–19)', data: Object.keys(LINE_LABELS).map(l => peakOffpeak[l]?.['PM Peak (17-19)'] || 0), backgroundColor: '#D97706', borderRadius: 4 }},
+        {{ label: 'Off-Peak', data: Object.keys(LINE_LABELS).map(l => peakOffpeak[l]?.['Off-Peak'] || 0), backgroundColor: '#E5E7EB', borderRadius: 4 }}
+      ]
     }},
     options: {{
       responsive: true,
@@ -1754,27 +1534,252 @@ new Chart(document.getElementById('peakOffpeak'), {{
         legend: {{ position: 'top', labels: {{ usePointStyle: true, pointStyle: 'circle', padding: 12, font: {{ size: 11 }} }} }},
         tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' }} }}
       }},
-      scales: {{
-        x: {{ stacked: true, grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }},
-        y: {{ stacked: true, title: {{ display: true, text: 'Disrupted time %', font: {{ size: 11 }} }}, grid: {{ color: '#F3F4F6' }} }}
-      }}
+      scales: {{ y: {{ title: {{ display: true, text: 'Disruption %', font: {{ size: 11 }} }}, beginAtZero: true, grid: {{ color: '#F3F4F6' }} }}, x: {{ grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }} }}
     }}
   }});
-}})();
+
+  (function() {{
+    const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+    const table = document.getElementById('corrTable');
+    let h = '<thead><tr><th></th>' + lines.map(l => '<th>' + LINE_LABELS[l] + '</th>').join('') + '</tr></thead><tbody>';
+    lines.forEach(a => {{
+      h += '<tr><th style="text-align:left;font-weight:500">' + LINE_LABELS[a] + '</th>';
+      lines.forEach(b => {{
+        if (a === b) {{
+          h += '<td style="color:#D1D5DB">—</td>';
+        }} else {{
+          const val = correlation[a]?.[b] || 0;
+          const intensity = Math.min(val / 50, 1);
+          h += `<td style="background:rgba(220,38,38,${{intensity * 0.15}});font-weight:600">${{val}}%</td>`;
+        }}
+      }});
+      h += '</tr>';
+    }});
+    h += '</tbody>';
+    table.innerHTML = h;
+  }})();
+
+  (function() {{
+    const bins = ['0', '10', '20', '30', '40', '50', '60', '90', '120'];
+    const binLabels = ['0–10', '10–20', '20–30', '30–40', '40–50', '50–60', '60–90', '90–120', '120+'];
+    const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+    new Chart(document.getElementById('streakDist'), {{
+      type: 'bar',
+      data: {{
+        labels: binLabels,
+        datasets: lines.map(line => ({{ label: LINE_LABELS[line], data: bins.map(b => streakDist[line]?.[b] || 0), backgroundColor: LINE_COLORS[line] + 'cc', borderRadius: 3 }}))
+      }},
+      options: {{
+        responsive: true,
+        plugins: {{
+          legend: {{ position: 'top', labels: {{ usePointStyle: true, pointStyle: 'circle', padding: 12, font: {{ size: 11 }} }} }},
+          tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + ctx.raw + ' episodes' }} }}
+        }},
+        scales: {{
+          y: {{ title: {{ display: true, text: 'Episodes', font: {{ size: 11 }} }}, beginAtZero: true, grid: {{ color: '#F3F4F6' }} }},
+          x: {{ title: {{ display: true, text: 'Duration (minutes)', font: {{ size: 11 }} }}, grid: {{ display: false }} }}
+        }}
+      }}
+    }});
+  }})();
+
+  (function() {{
+    const container = document.getElementById('calendarHeatmap');
+    if (!calendarData.length) return;
+    const maxVal = Math.max(...calendarData.map(d => d.value));
+    const getColor = v => {{
+      if (v === 0) return '#F3F4F6';
+      const t = v / maxVal;
+      if (t < 0.15) return '#EFF6FF';
+      if (t < 0.3) return '#BFDBFE';
+      if (t < 0.5) return '#3B82F6';
+      if (t < 0.75) return '#D97706';
+      return '#DC2626';
+    }};
+    const weeks = {{}};
+    calendarData.forEach(d => {{
+      const dt = new Date(d.date);
+      const ws = new Date(dt);
+      ws.setDate(dt.getDate() - dt.getDay() + 1);
+      const key = ws.toISOString().slice(0, 10);
+      if (!weeks[key]) weeks[key] = [];
+      weeks[key].push(d);
+    }});
+    const wkKeys = Object.keys(weeks).sort();
+    let html = '';
+    wkKeys.forEach(wk => {{
+      html += '<div class="cal-col">';
+      const dayMap = Object.fromEntries(weeks[wk].map(d => [new Date(d.date).getDay(), d]));
+      for (let dow = 1; dow <= 5; dow++) {{
+        const d = dayMap[dow];
+        if (d) {{
+          const lineInfo = Object.entries(lineDailyData).map(([line, data]) => {{
+            const minutes = data[d.date] || 0;
+            return minutes > 0 ? LINE_LABELS[line] + ': ' + minutes + 'm' : '';
+          }}).filter(Boolean).join(', ');
+          html += `<div class="cal-cell" style="background:${{getColor(d.value)}}" data-tip="${{d.date}} — ${{d.value}}m (${{lineInfo || 'None'}})"></div>`;
+        }} else {{
+          html += '<div style="width:18px;height:18px"></div>';
+        }}
+      }}
+      html += '</div>';
+    }});
+    container.innerHTML = html;
+  }})();
+
+  (function() {{
+    const allTrans = {{}};
+    Object.entries(escalations).forEach(([line, transitions]) => {{
+      Object.entries(transitions).forEach(([transition, count]) => {{
+        if (!allTrans[transition]) allTrans[transition] = {{}};
+        allTrans[transition][line] = count;
+      }});
+    }});
+    const transitionLabels = Object.keys(allTrans);
+    const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+    new Chart(document.getElementById('escalation'), {{
+      type: 'bar',
+      data: {{
+        labels: transitionLabels,
+        datasets: lines.map(line => ({{ label: LINE_LABELS[line], data: transitionLabels.map(t => allTrans[t]?.[line] || 0), backgroundColor: LINE_COLORS[line] + 'cc', borderRadius: 3 }}))
+      }},
+      options: {{
+        responsive: true,
+        indexAxis: 'y',
+        plugins: {{
+          legend: {{ position: 'top', labels: {{ usePointStyle: true, pointStyle: 'circle', padding: 12, font: {{ size: 11 }} }} }},
+          tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + ctx.raw }} }}
+        }},
+        scales: {{
+          x: {{ beginAtZero: true, stacked: true, grid: {{ color: '#F3F4F6' }} }},
+          y: {{ stacked: true, grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }}
+        }}
+      }}
+    }});
+  }})();
+
+  (function() {{
+    const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+    const statuses = ['Minor Delays', 'Severe Delays', 'Part Suspended', 'Part Closure', 'Suspended'];
+    const colors = {{ 'Minor Delays': '#D97706', 'Severe Delays': '#DC2626', 'Part Suspended': '#B91C1C', 'Part Closure': '#8B5CF6', 'Suspended': '#7C2D12' }};
+    new Chart(document.getElementById('composition'), {{
+      type: 'bar',
+      data: {{
+        labels: lines.map(l => LINE_LABELS[l]),
+        datasets: statuses.map(status => ({{ label: status, data: lines.map(line => reliability[line]?.breakdown?.[status] || 0), backgroundColor: colors[status], borderRadius: 2 }}))
+      }},
+      options: {{
+        responsive: true,
+        plugins: {{
+          legend: {{ position: 'top', labels: {{ usePointStyle: true, pointStyle: 'circle', padding: 12, font: {{ size: 11 }} }} }},
+          tooltip: {{ backgroundColor: '#111827', cornerRadius: 6, callbacks: {{ label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' }} }}
+        }},
+        scales: {{
+          x: {{ stacked: true, grid: {{ display: false }}, ticks: {{ font: {{ size: 10 }} }} }},
+          y: {{ stacked: true, title: {{ display: true, text: 'Disrupted time %', font: {{ size: 11 }} }}, grid: {{ color: '#F3F4F6' }} }}
+        }}
+      }}
+    }});
+  }})();
+}}
+
+async function loadDashboard() {{
+  try {{
+    const response = await fetch(DATA_URL, {{ cache: 'no-store' }});
+    if (!response.ok) {{
+      throw new Error(`Failed to load dashboard data (${{response.status}})`);
+    }}
+    renderDashboard(await response.json());
+  }} catch (error) {{
+    console.error(error);
+    showError('The dashboard data could not be loaded from Azure storage yet.');
+  }}
+}}
+
+loadDashboard();
 </script>
 </body>
 </html>"""
     return html
 
 
+def build_dashboard_payload(
+    reliability, heatmap, correlation, causes, causes_by_line,
+    daily_disruption, line_daily, peak_offpeak, escalations,
+    streaks, weekly_trend
+):
+    all_days = sorted(daily_disruption.keys())
+    sorted_causes = sorted(causes.items(), key=lambda x: -x[1])
+    all_weeks = sorted(set(w["week"] for line_weeks in weekly_trend.values() for w in line_weeks))
+    streak_distribution = {line: dict(values["distribution"]) for line, values in streaks.items()}
+    line_daily_data = {line: dict(values) for line, values in line_daily.items()}
+
+    return {
+        "generatedAt": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "dateFrom": all_days[0] if all_days else "—",
+        "dateTo": all_days[-1] if all_days else "—",
+        "totalChecks": sum(r["total_checks"] for r in reliability.values()),
+        "totalDelays": sum(count for _, count in sorted_causes),
+        "weeklyTrend": weekly_trend,
+        "heatmapData": heatmap,
+        "causeLabels": [cause for cause, _ in sorted_causes],
+        "causeValues": [count for _, count in sorted_causes],
+        "peakOffpeak": peak_offpeak,
+        "correlation": correlation,
+        "calendarData": [{"date": date, "value": daily_disruption[date]} for date in all_days],
+        "lineDailyData": line_daily_data,
+        "streakDist": streak_distribution,
+        "escalations": escalations,
+        "reliability": reliability,
+        "allWeeks": all_weeks,
+    }
+
+
+def publish_dashboard_to_blob_storage(
+    connection_string,
+    dashboard_html,
+    dashboard_payload,
+    container_name="$web",
+    dashboard_blob_name=DASHBOARD_HTML_FILE,
+    data_blob_name=DASHBOARD_DATA_FILE,
+    index_blob_name="index.html",
+):
+    if not connection_string:
+        raise ValueError("Blob storage connection string is required")
+    if BlobServiceClient is None or ContentSettings is None:
+        raise RuntimeError("azure-storage-blob is required to publish dashboard artifacts")
+
+    service_client = BlobServiceClient.from_connection_string(connection_string)
+    container_client = service_client.get_container_client(container_name)
+    try:
+        container_client.create_container()
+    except ResourceExistsError:
+        pass
+
+    html_settings = ContentSettings(content_type="text/html; charset=utf-8")
+    json_settings = ContentSettings(content_type="application/json; charset=utf-8")
+
+    uploaded_blobs = []
+    for blob_name in (dashboard_blob_name, index_blob_name):
+        container_client.get_blob_client(blob_name).upload_blob(
+            dashboard_html,
+            overwrite=True,
+            content_settings=html_settings,
+        )
+        uploaded_blobs.append(blob_name)
+
+    container_client.get_blob_client(data_blob_name).upload_blob(
+        json.dumps(dashboard_payload, indent=2),
+        overwrite=True,
+        content_settings=json_settings,
+    )
+    uploaded_blobs.append(data_blob_name)
+    return uploaded_blobs
+
+
 # ── Main ────────────────────────────────────────────────────────────────────
 def main():
-    conn_str = os.environ.get(
-        "STORAGE_CONNECTION_STRING",
-        "DefaultEndpointsProtocol=https;AccountName=tflmetropolitandata;"
-        "AccountKey=oDO5qBh3jBvfVlieXaPQOuzsJZ0V0lcr+XF+efo0oMXmCJZ2802PjLCrlAnuVmffmknRfSXyJ194+AStIRSBNQ==;"
-        "EndpointSuffix=core.windows.net"
-    )
+    conn_str = get_connection_string()
 
     state_data, delay_data = download_all_data(conn_str)
 
@@ -1795,6 +1800,7 @@ def main():
         daily_disruption, line_daily, peak_offpeak, escalations,
         streaks, weekly_trend
     )
+    dashboard_payload = build_dashboard_payload(*args)
 
     # v1 (dark theme)
     print("Generating v1 dashboard (dark theme)...")
@@ -1806,11 +1812,27 @@ def main():
 
     # v2 (Clean design system)
     print("Generating v2 dashboard (Clean design)...")
-    html_v2 = generate_html_v2(*args)
-    v2_path = os.path.join(base_dir, "tfl_status_dashboard_v2.html")
+    html_v2 = generate_html_v2(dashboard_payload)
+    v2_path = os.path.join(base_dir, DASHBOARD_HTML_FILE)
     with open(v2_path, "w", encoding="utf-8") as f:
         f.write(html_v2)
     print(f"  ✅ {v2_path}")
+
+    data_path = os.path.join(base_dir, DASHBOARD_DATA_FILE)
+    with open(data_path, "w", encoding="utf-8") as f:
+        json.dump(dashboard_payload, f, indent=2)
+    print(f"  ✅ {data_path}")
+
+    if os.environ.get("PUBLISH_TO_BLOB", "").strip().lower() in {"1", "true", "yes"}:
+        publish_connection = os.environ.get("DASHBOARD_BLOB_CONNECTION_STRING", "").strip() or conn_str
+        container_name = os.environ.get("DASHBOARD_BLOB_CONTAINER", "$web").strip() or "$web"
+        uploaded = publish_dashboard_to_blob_storage(
+            connection_string=publish_connection,
+            dashboard_html=html_v2,
+            dashboard_payload=dashboard_payload,
+            container_name=container_name,
+        )
+        print(f"  ✅ Published to Azure Blob Storage: {', '.join(uploaded)}")
 
     print(f"\nDone — open either file in a browser to view.")
 

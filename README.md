@@ -51,6 +51,9 @@ Set these in Azure Function App settings (and in `local.settings.json` for local
 - `TABLE_NAME` (optional; used by Metropolitan monitor, default `MetropolitanLineDelays`)
 - `TIMELINESS_BLOB_CONNECTION_STRING` (recommended for timeliness artifacts; if omitted, timeliness falls back to `STORAGE_CONNECTION_STRING`, then `AzureWebJobsStorage`)
 - `TIMELINESS_BLOB_CONTAINER` (optional; defaults to `$web`)
+- `DASHBOARD_BLOB_CONNECTION_STRING` (optional; if omitted, dashboard publishing falls back to `STORAGE_CONNECTION_STRING`)
+- `DASHBOARD_BLOB_CONTAINER` (optional; defaults to `$web`)
+- `PUBLISH_TO_BLOB` (optional; set to `true` to upload the public dashboard assets)
 
 > Important: `local.settings.json` contains local secrets and should not be committed.
 
@@ -132,3 +135,23 @@ To keep deployments isolated, run timeliness as a separate process:
 ```bash
 python -m unittest tests.test_train_timeliness -v
 ```
+
+### Publishing the line status dashboard to Azure Storage static website hosting
+
+1. Set `STORAGE_CONNECTION_STRING` for the storage account that holds your TfL tables.
+2. Set `PUBLISH_TO_BLOB=true`.
+3. Optionally set `DASHBOARD_BLOB_CONNECTION_STRING` or `DASHBOARD_BLOB_CONTAINER` if you want to publish somewhere other than the default `$web` container.
+4. Run:
+   ```bash
+   python generate_visualisations.py
+   ```
+
+This generates `tfl_status_dashboard.html`, `tfl_status_dashboard_v2.html`, and `latest_dashboard_data.json`.
+
+When publishing is enabled, the script uploads:
+
+- `index.html`
+- `tfl_status_dashboard_v2.html`
+- `latest_dashboard_data.json`
+
+to the Azure Storage static website container so the dashboard is publicly viewable on the internet.
