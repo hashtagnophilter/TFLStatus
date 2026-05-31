@@ -1,52 +1,52 @@
-name: TFL Train Timeliness Monitor
+name: Train Timeliness
 
 on:
-  # Run every 5 minutes during operating hours (Mon-Fri, 8am-midnight UK time)
   schedule:
-    - cron: '*/5 8-23 * * 1-5'  # Every 5 minutes, 8am-11:55pm UTC, weekdays
-  # Allow manual trigger for testing
+    - cron: "*/5 8-23 * * 1-5"
   workflow_dispatch:
 
-# Allow the workflow to write to the repository and deploy GitHub Pages
 permissions:
   contents: write
   pages: write
   id-token: write
 
 jobs:
-  collect-timeliness:
+  generate-report:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install -r requirements.txt
 
-      - name: Run timeliness collection
+      - name: Generate timeliness snapshot and report
         run: python train_timeliness.py
-        env:
-          DATA_DIR: timeliness_data
-          OUTPUT_HTML: timeliness_report.html
 
-      - name: Commit and push data
+      - name: Commit updated timeliness artifacts
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add timeliness_data/ timeliness_report.html
-          git diff --cached --quiet || git commit -m "📊 Timeliness snapshot $(date -u +'%Y-%m-%d %H:%M UTC')"
-          git push
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add timeliness_data timeliness_report.html
+          if git diff --cached --quiet; then
+            echo "No timeliness artifact changes to commit."
+          else
+            git commit -m "Update timeliness report [skip ci]"
+            git push
+          fi
 
-      - name: Prepare Pages content
+      - name: Build Pages artifact
         run: |
           mkdir -p _site
-          cp timeliness_report.html _site/index.html
+          cp web/index.html _site/index.html
+          cp timeliness_report.html _site/timeliness_report.html
+          cp timeliness_data/latest_summary.json _site/latest_summary.json
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -54,7 +54,7 @@ jobs:
           path: _site
 
   deploy-pages:
-    needs: collect-timeliness
+    needs: generate-report
     runs-on: ubuntu-latest
     environment:
       name: github-pages

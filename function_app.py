@@ -5,10 +5,12 @@ import json
 from azure.data.tables import TableServiceClient, TableClient
 from datetime import datetime, timedelta
 import os
-from typing import Dict, Any
 
 
 app = func.FunctionApp()
+
+from timeliness_function_app import bp
+app.register_blueprint(bp)
 
 
 @app.timer_trigger(schedule="0 */2 * * * *", arg_name="myTimer", run_on_startup=False, use_monitor=False) 
@@ -695,5 +697,3 @@ def CircleMonitor(myTimer: func.TimerRequest) -> None:
     except Exception as e:
         logging.error(f'Unexpected error (Circle): {str(e)}')
         raise
-
-# ...existing code...

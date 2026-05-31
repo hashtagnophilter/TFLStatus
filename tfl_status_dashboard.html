@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TFL Line Status Intelligence Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0e17;
+    --card: #131a2b;
+    --border: #1e2a42;
+    --text: #e0e6f0;
+    --muted: #7b8ba8;
+    --accent: #3b82f6;
+    --met: #9B0056;
+    --bak: #B36305;
+    --cir: #FFD300;
+    --hc: #F3A9BB;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 0;
+  }
+  .header {
+    background: linear-gradient(135deg, #1a1f35 0%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 2rem 2rem 1.5rem;
+  }
+  .header h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    margin-bottom: 0.3rem;
+  }
+  .header h1 span { color: var(--accent); }
+  .header .subtitle {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+  .dashboard {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+  }
+  .card.full { grid-column: 1 / -1; }
+  .card h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+    color: var(--text);
+  }
+  .card .card-desc {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+  .card canvas { max-height: 400px; }
+
+  /* Reliability KPI row */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    grid-column: 1 / -1;
+  }
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.2rem;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .kpi.met::before { background: var(--met); }
+  .kpi.bak::before { background: var(--bak); }
+  .kpi.cir::before { background: var(--cir); }
+  .kpi.hc::before { background: var(--hc); }
+  .kpi .line-name { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .kpi .big-num { font-size: 2.4rem; font-weight: 700; margin: 0.3rem 0; }
+  .kpi .label { font-size: 0.75rem; color: var(--muted); }
+  .kpi.met .big-num { color: var(--met); }
+  .kpi.bak .big-num { color: var(--bak); }
+  .kpi.cir .big-num { color: #bfa200; }
+  .kpi.hc .big-num { color: var(--hc); }
+
+  /* Calendar heatmap */
+  .calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 22px);
+    gap: 3px;
+    margin-top: 0.5rem;
+  }
+  .cal-cell {
+    width: 20px; height: 20px;
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+  }
+  .cal-cell:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e2a42;
+    color: #e0e6f0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .cal-label {
+    font-size: 0.65rem;
+    color: var(--muted);
+    text-align: center;
+    line-height: 20px;
+  }
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 0.7rem;
+    font-size: 0.7rem;
+    color: var(--muted);
+  }
+  .legend-swatch {
+    width: 14px; height: 14px;
+    border-radius: 2px;
+  }
+
+  /* Correlation matrix */
+  .corr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+  }
+  .corr-table th, .corr-table td {
+    padding: 0.6rem;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+  .corr-table th {
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.7rem;
+  }
+
+  /* Insight boxes */
+  .insight {
+    background: rgba(59,130,246,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 0.8rem 1rem;
+    margin-top: 1rem;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.82rem;
+  }
+  .insight strong { color: var(--accent); }
+
+  @media (max-width: 900px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>TFL <span>Line Status Intelligence</span></h1>
+  <div class="subtitle">Real-time monitoring data from 2026-01-22 to 2026-05-29 &middot; 198,828 status checks across 4 lines</div>
+</div>
+
+<div class="dashboard">
+
+  <!-- KPI Row -->
+  <div class="kpi-row">
+    <div class="kpi met">
+      <div class="line-name">Metropolitan</div>
+      <div class="big-num">78.8%</div>
+      <div class="label">Service reliability</div>
+    </div>
+    <div class="kpi bak">
+      <div class="line-name">Bakerloo</div>
+      <div class="big-num">78.1%</div>
+      <div class="label">Service reliability</div>
+    </div>
+    <div class="kpi cir">
+      <div class="line-name">Circle</div>
+      <div class="big-num">84.4%</div>
+      <div class="label">Service reliability</div>
+    </div>
+    <div class="kpi hc">
+      <div class="line-name">Hammersmith & City</div>
+      <div class="big-num">97.2%</div>
+      <div class="label">Service reliability</div>
+    </div>
+  </div>
+
+  <!-- Weekly Trend -->
+  <div class="card full">
+    <h2>📈 Disruption Trend by Week</h2>
+    <div class="card-desc">Percentage of operating time spent in disrupted status, week-over-week. Reveals improving or deteriorating patterns.</div>
+    <canvas id="weeklyTrend"></canvas>
+  </div>
+
+  <!-- Hourly Heatmap -->
+  <div class="card full">
+    <h2>🔥 Disruption Risk Heatmap — Hour × Day of Week</h2>
+    <div class="card-desc">Probability of disruption (%) at each hour on each weekday. Darker = more likely to experience delays.</div>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+      <canvas id="heatmapMet"></canvas>
+      <canvas id="heatmapBak"></canvas>
+      <canvas id="heatmapCir"></canvas>
+      <canvas id="heatmapHC"></canvas>
+    </div>
+  </div>
+
+  <!-- Delay Causes -->
+  <div class="card">
+    <h2>🔍 Root Cause Analysis</h2>
+    <div class="card-desc">What's actually breaking? Delay reasons categorised from 634 incident reports.</div>
+    <canvas id="causes"></canvas>
+  </div>
+
+  <!-- Peak vs Off-Peak -->
+  <div class="card">
+    <h2>🚇 Rush Hour Impact</h2>
+    <div class="card-desc">Are commuters disproportionately affected? Disruption rates during AM peak, PM peak, and off-peak.</div>
+    <canvas id="peakOffpeak"></canvas>
+  </div>
+
+  <!-- Cross-Line Correlation -->
+  <div class="card">
+    <h2>🔗 Cross-Line Disruption Cascade</h2>
+    <div class="card-desc">When Line A is disrupted, how often is Line B simultaneously disrupted? Reveals infrastructure dependencies.</div>
+    <table class="corr-table" id="corrTable"></table>
+  </div>
+
+  <!-- Disruption Streak Duration -->
+  <div class="card">
+    <h2>⏱️ Disruption Duration Distribution</h2>
+    <div class="card-desc">How long do disruptions last once they start? Shows the spread of continuous disruption episodes.</div>
+    <canvas id="streakDist"></canvas>
+  </div>
+
+  <!-- Calendar Heatmap -->
+  <div class="card full">
+    <h2>📅 Daily Disruption Calendar</h2>
+    <div class="card-desc">Each cell = one day. Colour intensity shows total disruption minutes across all lines. Hover for details.</div>
+    <div id="calendarHeatmap"></div>
+    <div class="legend">
+      <span>Less</span>
+      <div class="legend-swatch" style="background:#0e1726"></div>
+      <div class="legend-swatch" style="background:#1a3a5c"></div>
+      <div class="legend-swatch" style="background:#2563eb"></div>
+      <div class="legend-swatch" style="background:#f59e0b"></div>
+      <div class="legend-swatch" style="background:#ef4444"></div>
+      <span>More</span>
+    </div>
+  </div>
+
+  <!-- Severity Escalation -->
+  <div class="card">
+    <h2>⚡ Severity Escalation Patterns</h2>
+    <div class="card-desc">How often do minor delays escalate to severe? Shows transitions between disruption levels.</div>
+    <canvas id="escalation"></canvas>
+  </div>
+
+  <!-- Stacked area: disruption by type over time -->
+  <div class="card">
+    <h2>📊 Disruption Composition by Line</h2>
+    <div class="card-desc">Breakdown of disruption types for each line, showing what fraction is minor vs severe vs suspension.</div>
+    <canvas id="composition"></canvas>
+  </div>
+
+</div>
+
+<script>
+// ── Data ─────────────────────────────────────────────────────────────────
+const LINE_COLORS = {"metropolitan": "#9B0056", "bakerloo": "#B36305", "circle": "#FFD300", "hammersmith-city": "#F3A9BB"};
+const LINE_LABELS = {"metropolitan": "Metropolitan", "bakerloo": "Bakerloo", "circle": "Circle", "hammersmith-city": "Hammersmith & City"};
+const weeklyTrend = {"bakerloo": [{"week": "2026-W06", "pct": 22.8, "total": 3125}, {"week": "2026-W07", "pct": 30.8, "total": 3145}, {"week": "2026-W08", "pct": 18.9, "total": 3074}, {"week": "2026-W09", "pct": 26.3, "total": 3113}, {"week": "2026-W10", "pct": 18.9, "total": 3117}, {"week": "2026-W11", "pct": 16.5, "total": 3005}, {"week": "2026-W12", "pct": 15.9, "total": 3067}, {"week": "2026-W13", "pct": 30.5, "total": 3018}, {"week": "2026-W14", "pct": 38.7, "total": 2979}, {"week": "2026-W15", "pct": 27.8, "total": 3061}, {"week": "2026-W16", "pct": 45.4, "total": 3198}, {"week": "2026-W17", "pct": 10.3, "total": 3039}, {"week": "2026-W18", "pct": 5.6, "total": 3042}, {"week": "2026-W19", "pct": 6.7, "total": 3112}, {"week": "2026-W20", "pct": 2.3, "total": 3127}, {"week": "2026-W21", "pct": 26.0, "total": 3106}], "circle": [{"week": "2026-W06", "pct": 4.9, "total": 2555}, {"week": "2026-W07", "pct": 6.9, "total": 3147}, {"week": "2026-W08", "pct": 3.6, "total": 3074}, {"week": "2026-W09", "pct": 1.4, "total": 3130}, {"week": "2026-W10", "pct": 7.8, "total": 3128}, {"week": "2026-W11", "pct": 28.4, "total": 3030}, {"week": "2026-W12", "pct": 10.7, "total": 3041}, {"week": "2026-W13", "pct": 10.3, "total": 3020}, {"week": "2026-W14", "pct": 9.2, "total": 2964}, {"week": "2026-W15", "pct": 6.0, "total": 3076}, {"week": "2026-W16", "pct": 58.2, "total": 3199}, {"week": "2026-W17", "pct": 17.6, "total": 3032}, {"week": "2026-W18", "pct": 3.9, "total": 3058}, {"week": "2026-W19", "pct": 11.6, "total": 3112}, {"week": "2026-W20", "pct": 17.8, "total": 3122}, {"week": "2026-W21", "pct": 41.5, "total": 3112}], "hammersmith-city": [{"week": "2026-W06", "pct": 0.0, "total": 2435}, {"week": "2026-W07", "pct": 0.0, "total": 3036}, {"week": "2026-W08", "pct": 0.0, "total": 2955}, {"week": "2026-W09", "pct": 1.4, "total": 3129}, {"week": "2026-W10", "pct": 0.0, "total": 2631}, {"week": "2026-W11", "pct": 1.9, "total": 2424}, {"week": "2026-W12", "pct": 0.0, "total": 3003}, {"week": "2026-W13", "pct": 0.0, "total": 2249}, {"week": "2026-W14", "pct": 0.0, "total": 2068}, {"week": "2026-W15", "pct": 0.0, "total": 2893}, {"week": "2026-W16", "pct": 30.1, "total": 2317}, {"week": "2026-W17", "pct": 0.0, "total": 2540}, {"week": "2026-W18", "pct": 0.0, "total": 2702}, {"week": "2026-W19", "pct": 0.0, "total": 2672}, {"week": "2026-W20", "pct": 3.2, "total": 2907}, {"week": "2026-W21", "pct": 4.3, "total": 1990}], "metropolitan": [{"week": "2026-W03", "pct": 5.0, "total": 2659}, {"week": "2026-W04", "pct": 11.4, "total": 2996}, {"week": "2026-W05", "pct": 18.2, "total": 3131}, {"week": "2026-W06", "pct": 9.0, "total": 3127}, {"week": "2026-W07", "pct": 45.9, "total": 3239}, {"week": "2026-W08", "pct": 16.7, "total": 3093}, {"week": "2026-W09", "pct": 9.9, "total": 3116}, {"week": "2026-W10", "pct": 23.0, "total": 3138}, {"week": "2026-W11", "pct": 39.0, "total": 3068}, {"week": "2026-W12", "pct": 16.9, "total": 3087}, {"week": "2026-W13", "pct": 15.4, "total": 3083}, {"week": "2026-W14", "pct": 14.7, "total": 3033}, {"week": "2026-W15", "pct": 4.7, "total": 3087}, {"week": "2026-W16", "pct": 65.4, "total": 3247}, {"week": "2026-W17", "pct": 18.5, "total": 3079}, {"week": "2026-W18", "pct": 26.7, "total": 3192}, {"week": "2026-W19", "pct": 17.9, "total": 3126}, {"week": "2026-W20", "pct": 8.2, "total": 3128}, {"week": "2026-W21", "pct": 24.1, "total": 3120}]};
+const heatmapData = {"bakerloo": [{"x": 5, "y": 0, "v": 7.7}, {"x": 6, "y": 0, "v": 16.8}, {"x": 7, "y": 0, "v": 37.9}, {"x": 8, "y": 0, "v": 43.3}, {"x": 9, "y": 0, "v": 26.8}, {"x": 10, "y": 0, "v": 13.4}, {"x": 11, "y": 0, "v": 7.5}, {"x": 12, "y": 0, "v": 7.6}, {"x": 13, "y": 0, "v": 15.7}, {"x": 14, "y": 0, "v": 24.2}, {"x": 15, "y": 0, "v": 37.5}, {"x": 16, "y": 0, "v": 36.2}, {"x": 17, "y": 0, "v": 41.0}, {"x": 18, "y": 0, "v": 40.9}, {"x": 19, "y": 0, "v": 31.6}, {"x": 20, "y": 0, "v": 26.3}, {"x": 21, "y": 0, "v": 25.7}, {"x": 22, "y": 0, "v": 26.2}, {"x": 23, "y": 0, "v": 31.7}, {"x": 5, "y": 1, "v": 0.4}, {"x": 6, "y": 1, "v": 5.4}, {"x": 7, "y": 1, "v": 14.5}, {"x": 8, "y": 1, "v": 23.5}, {"x": 9, "y": 1, "v": 22.5}, {"x": 10, "y": 1, "v": 11.2}, {"x": 11, "y": 1, "v": 1.7}, {"x": 12, "y": 1, "v": 2.7}, {"x": 13, "y": 1, "v": 19.9}, {"x": 14, "y": 1, "v": 25.2}, {"x": 15, "y": 1, "v": 22.2}, {"x": 16, "y": 1, "v": 23.3}, {"x": 17, "y": 1, "v": 34.6}, {"x": 18, "y": 1, "v": 36.8}, {"x": 19, "y": 1, "v": 26.6}, {"x": 20, "y": 1, "v": 17.4}, {"x": 21, "y": 1, "v": 12.7}, {"x": 22, "y": 1, "v": 12.3}, {"x": 23, "y": 1, "v": 16.4}, {"x": 5, "y": 2, "v": 11.9}, {"x": 6, "y": 2, "v": 16.6}, {"x": 7, "y": 2, "v": 37.5}, {"x": 8, "y": 2, "v": 35.7}, {"x": 9, "y": 2, "v": 41.0}, {"x": 10, "y": 2, "v": 22.5}, {"x": 11, "y": 2, "v": 26.9}, {"x": 12, "y": 2, "v": 23.1}, {"x": 13, "y": 2, "v": 18.5}, {"x": 14, "y": 2, "v": 21.7}, {"x": 15, "y": 2, "v": 26.8}, {"x": 16, "y": 2, "v": 35.6}, {"x": 17, "y": 2, "v": 45.0}, {"x": 18, "y": 2, "v": 43.7}, {"x": 19, "y": 2, "v": 39.4}, {"x": 20, "y": 2, "v": 24.9}, {"x": 21, "y": 2, "v": 28.4}, {"x": 22, "y": 2, "v": 25.5}, {"x": 23, "y": 2, "v": 23.7}, {"x": 5, "y": 3, "v": 5.5}, {"x": 6, "y": 3, "v": 12.7}, {"x": 7, "y": 3, "v": 28.9}, {"x": 8, "y": 3, "v": 34.9}, {"x": 9, "y": 3, "v": 30.2}, {"x": 10, "y": 3, "v": 6.2}, {"x": 11, "y": 3, "v": 0.2}, {"x": 12, "y": 3, "v": 11.4}, {"x": 13, "y": 3, "v": 6.2}, {"x": 14, "y": 3, "v": 14.3}, {"x": 15, "y": 3, "v": 17.3}, {"x": 16, "y": 3, "v": 25.9}, {"x": 17, "y": 3, "v": 30.4}, {"x": 18, "y": 3, "v": 30.5}, {"x": 19, "y": 3, "v": 22.1}, {"x": 20, "y": 3, "v": 12.8}, {"x": 21, "y": 3, "v": 13.2}, {"x": 22, "y": 3, "v": 17.9}, {"x": 23, "y": 3, "v": 15.1}, {"x": 5, "y": 4, "v": 14.8}, {"x": 6, "y": 4, "v": 32.9}, {"x": 7, "y": 4, "v": 36.9}, {"x": 8, "y": 4, "v": 33.5}, {"x": 9, "y": 4, "v": 22.9}, {"x": 10, "y": 4, "v": 18.7}, {"x": 11, "y": 4, "v": 13.7}, {"x": 12, "y": 4, "v": 12.6}, {"x": 13, "y": 4, "v": 15.7}, {"x": 14, "y": 4, "v": 20.3}, {"x": 15, "y": 4, "v": 22.4}, {"x": 16, "y": 4, "v": 26.2}, {"x": 17, "y": 4, "v": 22.2}, {"x": 18, "y": 4, "v": 24.4}, {"x": 19, "y": 4, "v": 29.1}, {"x": 20, "y": 4, "v": 20.3}, {"x": 21, "y": 4, "v": 17.3}, {"x": 22, "y": 4, "v": 20.3}, {"x": 23, "y": 4, "v": 23.5}], "circle": [{"x": 5, "y": 0, "v": 2.0}, {"x": 6, "y": 0, "v": 0.0}, {"x": 7, "y": 0, "v": 4.6}, {"x": 8, "y": 0, "v": 18.6}, {"x": 9, "y": 0, "v": 12.6}, {"x": 10, "y": 0, "v": 6.9}, {"x": 11, "y": 0, "v": 11.3}, {"x": 12, "y": 0, "v": 11.2}, {"x": 13, "y": 0, "v": 10.9}, {"x": 14, "y": 0, "v": 10.7}, {"x": 15, "y": 0, "v": 20.4}, {"x": 16, "y": 0, "v": 32.2}, {"x": 17, "y": 0, "v": 30.0}, {"x": 18, "y": 0, "v": 22.4}, {"x": 19, "y": 0, "v": 16.4}, {"x": 20, "y": 0, "v": 13.2}, {"x": 21, "y": 0, "v": 11.1}, {"x": 22, "y": 0, "v": 10.6}, {"x": 23, "y": 0, "v": 12.4}, {"x": 5, "y": 1, "v": 12.5}, {"x": 6, "y": 1, "v": 8.6}, {"x": 7, "y": 1, "v": 9.4}, {"x": 8, "y": 1, "v": 21.2}, {"x": 9, "y": 1, "v": 15.9}, {"x": 10, "y": 1, "v": 12.4}, {"x": 11, "y": 1, "v": 11.5}, {"x": 12, "y": 1, "v": 18.1}, {"x": 13, "y": 1, "v": 33.3}, {"x": 14, "y": 1, "v": 20.4}, {"x": 15, "y": 1, "v": 18.5}, {"x": 16, "y": 1, "v": 24.2}, {"x": 17, "y": 1, "v": 23.5}, {"x": 18, "y": 1, "v": 32.9}, {"x": 19, "y": 1, "v": 23.1}, {"x": 20, "y": 1, "v": 11.9}, {"x": 21, "y": 1, "v": 12.0}, {"x": 22, "y": 1, "v": 15.0}, {"x": 23, "y": 1, "v": 19.0}, {"x": 5, "y": 2, "v": 19.4}, {"x": 6, "y": 2, "v": 14.7}, {"x": 7, "y": 2, "v": 16.1}, {"x": 8, "y": 2, "v": 18.7}, {"x": 9, "y": 2, "v": 16.6}, {"x": 10, "y": 2, "v": 12.7}, {"x": 11, "y": 2, "v": 14.2}, {"x": 12, "y": 2, "v": 18.5}, {"x": 13, "y": 2, "v": 21.8}, {"x": 14, "y": 2, "v": 24.8}, {"x": 15, "y": 2, "v": 28.9}, {"x": 16, "y": 2, "v": 22.1}, {"x": 17, "y": 2, "v": 4.1}, {"x": 18, "y": 2, "v": 7.7}, {"x": 19, "y": 2, "v": 12.4}, {"x": 20, "y": 2, "v": 6.9}, {"x": 21, "y": 2, "v": 6.3}, {"x": 22, "y": 2, "v": 17.6}, {"x": 23, "y": 2, "v": 17.1}, {"x": 5, "y": 3, "v": 0.0}, {"x": 6, "y": 3, "v": 10.3}, {"x": 7, "y": 3, "v": 17.9}, {"x": 8, "y": 3, "v": 20.2}, {"x": 9, "y": 3, "v": 17.0}, {"x": 10, "y": 3, "v": 10.6}, {"x": 11, "y": 3, "v": 7.8}, {"x": 12, "y": 3, "v": 9.9}, {"x": 13, "y": 3, "v": 33.3}, {"x": 14, "y": 3, "v": 29.1}, {"x": 15, "y": 3, "v": 24.6}, {"x": 16, "y": 3, "v": 23.6}, {"x": 17, "y": 3, "v": 18.1}, {"x": 18, "y": 3, "v": 12.8}, {"x": 19, "y": 3, "v": 12.7}, {"x": 20, "y": 3, "v": 18.8}, {"x": 21, "y": 3, "v": 20.2}, {"x": 22, "y": 3, "v": 20.8}, {"x": 23, "y": 3, "v": 18.0}, {"x": 5, "y": 4, "v": 16.5}, {"x": 6, "y": 4, "v": 9.1}, {"x": 7, "y": 4, "v": 11.2}, {"x": 8, "y": 4, "v": 8.9}, {"x": 9, "y": 4, "v": 10.0}, {"x": 10, "y": 4, "v": 10.8}, {"x": 11, "y": 4, "v": 11.7}, {"x": 12, "y": 4, "v": 12.0}, {"x": 13, "y": 4, "v": 11.5}, {"x": 14, "y": 4, "v": 12.4}, {"x": 15, "y": 4, "v": 12.2}, {"x": 16, "y": 4, "v": 14.4}, {"x": 17, "y": 4, "v": 22.9}, {"x": 18, "y": 4, "v": 19.9}, {"x": 19, "y": 4, "v": 17.4}, {"x": 20, "y": 4, "v": 18.8}, {"x": 21, "y": 4, "v": 8.1}, {"x": 22, "y": 4, "v": 12.7}, {"x": 23, "y": 4, "v": 12.7}], "hammersmith-city": [{"x": 5, "y": 0, "v": 0.0}, {"x": 6, "y": 0, "v": 0.0}, {"x": 7, "y": 0, "v": 0.0}, {"x": 8, "y": 0, "v": 0.0}, {"x": 9, "y": 0, "v": 0.0}, {"x": 10, "y": 0, "v": 0.0}, {"x": 11, "y": 0, "v": 0.0}, {"x": 12, "y": 0, "v": 0.0}, {"x": 13, "y": 0, "v": 0.0}, {"x": 14, "y": 0, "v": 0.0}, {"x": 15, "y": 0, "v": 0.0}, {"x": 16, "y": 0, "v": 0.0}, {"x": 17, "y": 0, "v": 0.0}, {"x": 18, "y": 0, "v": 0.0}, {"x": 19, "y": 0, "v": 0.0}, {"x": 20, "y": 0, "v": 0.0}, {"x": 21, "y": 0, "v": 0.0}, {"x": 22, "y": 0, "v": 0.0}, {"x": 23, "y": 0, "v": 0.0}, {"x": 5, "y": 1, "v": 0.0}, {"x": 6, "y": 1, "v": 0.0}, {"x": 7, "y": 1, "v": 0.0}, {"x": 8, "y": 1, "v": 0.0}, {"x": 9, "y": 1, "v": 0.0}, {"x": 10, "y": 1, "v": 0.0}, {"x": 11, "y": 1, "v": 0.0}, {"x": 12, "y": 1, "v": 2.5}, {"x": 13, "y": 1, "v": 7.9}, {"x": 14, "y": 1, "v": 8.2}, {"x": 15, "y": 1, "v": 5.9}, {"x": 16, "y": 1, "v": 0.0}, {"x": 17, "y": 1, "v": 0.0}, {"x": 18, "y": 1, "v": 0.0}, {"x": 19, "y": 1, "v": 2.5}, {"x": 20, "y": 1, "v": 6.2}, {"x": 21, "y": 1, "v": 5.6}, {"x": 22, "y": 1, "v": 6.4}, {"x": 23, "y": 1, "v": 6.7}, {"x": 5, "y": 2, "v": 6.5}, {"x": 6, "y": 2, "v": 7.0}, {"x": 7, "y": 2, "v": 7.3}, {"x": 8, "y": 2, "v": 7.8}, {"x": 9, "y": 2, "v": 7.7}, {"x": 10, "y": 2, "v": 6.5}, {"x": 11, "y": 2, "v": 6.6}, {"x": 12, "y": 2, "v": 6.8}, {"x": 13, "y": 2, "v": 7.5}, {"x": 14, "y": 2, "v": 8.0}, {"x": 15, "y": 2, "v": 7.7}, {"x": 16, "y": 2, "v": 3.8}, {"x": 17, "y": 2, "v": 0.0}, {"x": 18, "y": 2, "v": 0.0}, {"x": 19, "y": 2, "v": 0.0}, {"x": 20, "y": 2, "v": 0.0}, {"x": 21, "y": 2, "v": 0.0}, {"x": 22, "y": 2, "v": 0.0}, {"x": 23, "y": 2, "v": 0.0}, {"x": 5, "y": 3, "v": 0.0}, {"x": 6, "y": 3, "v": 0.0}, {"x": 7, "y": 3, "v": 0.0}, {"x": 8, "y": 3, "v": 0.0}, {"x": 9, "y": 3, "v": 0.0}, {"x": 10, "y": 3, "v": 0.0}, {"x": 11, "y": 3, "v": 0.0}, {"x": 12, "y": 3, "v": 0.0}, {"x": 13, "y": 3, "v": 0.0}, {"x": 14, "y": 3, "v": 6.0}, {"x": 15, "y": 3, "v": 7.9}, {"x": 16, "y": 3, "v": 7.4}, {"x": 17, "y": 3, "v": 1.0}, {"x": 18, "y": 3, "v": 0.0}, {"x": 19, "y": 3, "v": 0.0}, {"x": 20, "y": 3, "v": 3.5}, {"x": 21, "y": 3, "v": 6.8}, {"x": 22, "y": 3, "v": 6.3}, {"x": 23, "y": 3, "v": 2.9}, {"x": 5, "y": 4, "v": 7.1}, {"x": 6, "y": 4, "v": 3.5}, {"x": 7, "y": 4, "v": 0.0}, {"x": 8, "y": 4, "v": 0.0}, {"x": 9, "y": 4, "v": 0.0}, {"x": 10, "y": 4, "v": 0.0}, {"x": 11, "y": 4, "v": 0.0}, {"x": 12, "y": 4, "v": 0.0}, {"x": 13, "y": 4, "v": 0.0}, {"x": 14, "y": 4, "v": 0.0}, {"x": 15, "y": 4, "v": 0.0}, {"x": 16, "y": 4, "v": 0.0}, {"x": 17, "y": 4, "v": 0.0}, {"x": 18, "y": 4, "v": 0.0}, {"x": 19, "y": 4, "v": 0.0}, {"x": 20, "y": 4, "v": 0.0}, {"x": 21, "y": 4, "v": 0.0}, {"x": 22, "y": 4, "v": 0.0}, {"x": 23, "y": 4, "v": 0.0}], "metropolitan": [{"x": 5, "y": 0, "v": 27.4}, {"x": 6, "y": 0, "v": 23.1}, {"x": 7, "y": 0, "v": 25.3}, {"x": 8, "y": 0, "v": 24.8}, {"x": 9, "y": 0, "v": 21.5}, {"x": 10, "y": 0, "v": 16.5}, {"x": 11, "y": 0, "v": 13.2}, {"x": 12, "y": 0, "v": 11.3}, {"x": 13, "y": 0, "v": 20.8}, {"x": 14, "y": 0, "v": 22.3}, {"x": 15, "y": 0, "v": 21.6}, {"x": 16, "y": 0, "v": 30.3}, {"x": 17, "y": 0, "v": 27.4}, {"x": 18, "y": 0, "v": 23.2}, {"x": 19, "y": 0, "v": 15.9}, {"x": 20, "y": 0, "v": 19.9}, {"x": 21, "y": 0, "v": 20.9}, {"x": 22, "y": 0, "v": 17.0}, {"x": 23, "y": 0, "v": 16.9}, {"x": 5, "y": 1, "v": 8.7}, {"x": 6, "y": 1, "v": 19.3}, {"x": 7, "y": 1, "v": 19.9}, {"x": 8, "y": 1, "v": 13.1}, {"x": 9, "y": 1, "v": 16.1}, {"x": 10, "y": 1, "v": 22.9}, {"x": 11, "y": 1, "v": 30.2}, {"x": 12, "y": 1, "v": 23.1}, {"x": 13, "y": 1, "v": 20.7}, {"x": 14, "y": 1, "v": 21.1}, {"x": 15, "y": 1, "v": 21.1}, {"x": 16, "y": 1, "v": 21.0}, {"x": 17, "y": 1, "v": 18.5}, {"x": 18, "y": 1, "v": 10.0}, {"x": 19, "y": 1, "v": 8.1}, {"x": 20, "y": 1, "v": 5.0}, {"x": 21, "y": 1, "v": 5.0}, {"x": 22, "y": 1, "v": 7.1}, {"x": 23, "y": 1, "v": 12.8}, {"x": 5, "y": 2, "v": 18.2}, {"x": 6, "y": 2, "v": 17.1}, {"x": 7, "y": 2, "v": 16.9}, {"x": 8, "y": 2, "v": 25.4}, {"x": 9, "y": 2, "v": 16.0}, {"x": 10, "y": 2, "v": 15.3}, {"x": 11, "y": 2, "v": 17.8}, {"x": 12, "y": 2, "v": 22.7}, {"x": 13, "y": 2, "v": 23.6}, {"x": 14, "y": 2, "v": 20.1}, {"x": 15, "y": 2, "v": 11.4}, {"x": 16, "y": 2, "v": 14.0}, {"x": 17, "y": 2, "v": 17.4}, {"x": 18, "y": 2, "v": 12.9}, {"x": 19, "y": 2, "v": 15.8}, {"x": 20, "y": 2, "v": 22.0}, {"x": 21, "y": 2, "v": 24.2}, {"x": 22, "y": 2, "v": 29.2}, {"x": 23, "y": 2, "v": 32.9}, {"x": 5, "y": 3, "v": 15.2}, {"x": 6, "y": 3, "v": 22.2}, {"x": 7, "y": 3, "v": 18.6}, {"x": 8, "y": 3, "v": 24.2}, {"x": 9, "y": 3, "v": 20.5}, {"x": 10, "y": 3, "v": 25.6}, {"x": 11, "y": 3, "v": 23.3}, {"x": 12, "y": 3, "v": 27.6}, {"x": 13, "y": 3, "v": 18.0}, {"x": 14, "y": 3, "v": 20.2}, {"x": 15, "y": 3, "v": 21.2}, {"x": 16, "y": 3, "v": 19.8}, {"x": 17, "y": 3, "v": 13.3}, {"x": 18, "y": 3, "v": 18.3}, {"x": 19, "y": 3, "v": 19.7}, {"x": 20, "y": 3, "v": 21.8}, {"x": 21, "y": 3, "v": 19.9}, {"x": 22, "y": 3, "v": 21.9}, {"x": 23, "y": 3, "v": 19.5}, {"x": 5, "y": 4, "v": 29.7}, {"x": 6, "y": 4, "v": 38.7}, {"x": 7, "y": 4, "v": 34.2}, {"x": 8, "y": 4, "v": 29.7}, {"x": 9, "y": 4, "v": 29.8}, {"x": 10, "y": 4, "v": 20.8}, {"x": 11, "y": 4, "v": 19.3}, {"x": 12, "y": 4, "v": 18.3}, {"x": 13, "y": 4, "v": 18.6}, {"x": 14, "y": 4, "v": 16.6}, {"x": 15, "y": 4, "v": 19.7}, {"x": 16, "y": 4, "v": 26.1}, {"x": 17, "y": 4, "v": 31.7}, {"x": 18, "y": 4, "v": 29.6}, {"x": 19, "y": 4, "v": 32.4}, {"x": 20, "y": 4, "v": 36.0}, {"x": 21, "y": 4, "v": 40.0}, {"x": 22, "y": 4, "v": 41.5}, {"x": 23, "y": 4, "v": 35.7}]};
+const causeLabels = ["Other", "Faulty Train", "Signal Failure", "Fire Alert", "Points Failure", "Customer Incident", "Late Finish Engineering", "Trespass on Tracks", "Person Ill on Train", "Earlier Incident", "Casualty on Track", "Defective Train"];
+const causeValues = [233, 105, 73, 62, 52, 33, 23, 22, 13, 11, 4, 3];
+const causesByLine = {"metropolitan": {"Signal Failure": 42, "Faulty Train": 49, "Other": 92, "Person Ill on Train": 8, "Trespass on Tracks": 12, "Fire Alert": 35, "Late Finish Engineering": 12, "Defective Train": 3, "Customer Incident": 16, "Points Failure": 20, "Earlier Incident": 3}, "bakerloo": {"Signal Failure": 28, "Points Failure": 19, "Casualty on Track": 4, "Customer Incident": 7, "Other": 85, "Earlier Incident": 5, "Fire Alert": 7, "Faulty Train": 19, "Late Finish Engineering": 8, "Person Ill on Train": 1}, "circle": {"Person Ill on Train": 4, "Faulty Train": 37, "Customer Incident": 10, "Trespass on Tracks": 10, "Points Failure": 13, "Other": 56, "Earlier Incident": 3, "Fire Alert": 20, "Late Finish Engineering": 3, "Signal Failure": 3}};
+const peakOffpeak = {"metropolitan": {"AM Peak (07-09)": 23.2, "PM Peak (17-19)": 20.1, "Off-Peak": 20.7}, "bakerloo": {"AM Peak (07-09)": 32.6, "PM Peak (17-19)": 35.0, "Off-Peak": 18.6}, "circle": {"AM Peak (07-09)": 14.7, "PM Peak (17-19)": 19.3, "Off-Peak": 14.8}, "hammersmith-city": {"AM Peak (07-09)": 1.6, "PM Peak (17-19)": 0.1, "Off-Peak": 2.6}};
+const correlation = {"metropolitan": {"metropolitan": 2247, "bakerloo": 28.5, "circle": 34.7, "hammersmith-city": 6.9}, "bakerloo": {"metropolitan": 29.5, "bakerloo": 2176, "circle": 23.1, "hammersmith-city": 7.0}, "circle": {"metropolitan": 50.7, "bakerloo": 32.7, "circle": 1537, "hammersmith-city": 12.8}, "hammersmith-city": {"metropolitan": 76.6, "bakerloo": 75.6, "circle": 98.0, "hammersmith-city": 201}};
+const calendarData = [{"date": "2026-01-22", "value": 16.0}, {"date": "2026-01-23", "value": 252.0}, {"date": "2026-01-26", "value": 318.0}, {"date": "2026-01-29", "value": 68.0}, {"date": "2026-01-30", "value": 300.0}, {"date": "2026-02-02", "value": 246.0}, {"date": "2026-02-03", "value": 448.0}, {"date": "2026-02-04", "value": 100.0}, {"date": "2026-02-06", "value": 344.0}, {"date": "2026-02-09", "value": 766.0}, {"date": "2026-02-10", "value": 644.0}, {"date": "2026-02-11", "value": 314.0}, {"date": "2026-02-12", "value": 370.0}, {"date": "2026-02-13", "value": 146.0}, {"date": "2026-02-16", "value": 960.0}, {"date": "2026-02-17", "value": 518.0}, {"date": "2026-02-18", "value": 744.0}, {"date": "2026-02-19", "value": 1452.0}, {"date": "2026-02-20", "value": 1676.0}, {"date": "2026-02-23", "value": 574.0}, {"date": "2026-02-24", "value": 932.0}, {"date": "2026-02-25", "value": 242.0}, {"date": "2026-02-26", "value": 152.0}, {"date": "2026-02-27", "value": 514.0}, {"date": "2026-03-02", "value": 352.0}, {"date": "2026-03-03", "value": 752.0}, {"date": "2026-03-04", "value": 588.0}, {"date": "2026-03-05", "value": 464.0}, {"date": "2026-03-06", "value": 284.0}, {"date": "2026-03-09", "value": 1110.0}, {"date": "2026-03-10", "value": 368.0}, {"date": "2026-03-11", "value": 660.0}, {"date": "2026-03-12", "value": 734.0}, {"date": "2026-03-13", "value": 236.0}, {"date": "2026-03-16", "value": 1322.0}, {"date": "2026-03-17", "value": 606.0}, {"date": "2026-03-18", "value": 2082.0}, {"date": "2026-03-19", "value": 500.0}, {"date": "2026-03-20", "value": 688.0}, {"date": "2026-03-23", "value": 100.0}, {"date": "2026-03-24", "value": 914.0}, {"date": "2026-03-25", "value": 450.0}, {"date": "2026-03-26", "value": 176.0}, {"date": "2026-03-27", "value": 1030.0}, {"date": "2026-03-30", "value": 710.0}, {"date": "2026-03-31", "value": 86.0}, {"date": "2026-04-01", "value": 334.0}, {"date": "2026-04-02", "value": 886.0}, {"date": "2026-04-03", "value": 1398.0}, {"date": "2026-04-06", "value": 1300.0}, {"date": "2026-04-07", "value": 336.0}, {"date": "2026-04-08", "value": 1006.0}, {"date": "2026-04-09", "value": 518.0}, {"date": "2026-04-10", "value": 584.0}, {"date": "2026-04-13", "value": 400.0}, {"date": "2026-04-14", "value": 416.0}, {"date": "2026-04-15", "value": 440.0}, {"date": "2026-04-16", "value": 600.0}, {"date": "2026-04-17", "value": 508.0}, {"date": "2026-04-20", "value": 298.0}, {"date": "2026-04-21", "value": 2644.0}, {"date": "2026-04-22", "value": 3752.0}, {"date": "2026-04-23", "value": 2606.0}, {"date": "2026-04-24", "value": 2968.0}, {"date": "2026-04-27", "value": 932.0}, {"date": "2026-04-28", "value": 120.0}, {"date": "2026-04-29", "value": 516.0}, {"date": "2026-04-30", "value": 608.0}, {"date": "2026-05-01", "value": 656.0}, {"date": "2026-05-04", "value": 1440.0}, {"date": "2026-05-05", "value": 286.0}, {"date": "2026-05-06", "value": 38.0}, {"date": "2026-05-07", "value": 266.0}, {"date": "2026-05-08", "value": 248.0}, {"date": "2026-05-11", "value": 826.0}, {"date": "2026-05-12", "value": 212.0}, {"date": "2026-05-13", "value": 230.0}, {"date": "2026-05-14", "value": 770.0}, {"date": "2026-05-15", "value": 218.0}, {"date": "2026-05-18", "value": 280.0}, {"date": "2026-05-19", "value": 638.0}, {"date": "2026-05-20", "value": 432.0}, {"date": "2026-05-21", "value": 162.0}, {"date": "2026-05-22", "value": 436.0}, {"date": "2026-05-25", "value": 836.0}, {"date": "2026-05-26", "value": 924.0}, {"date": "2026-05-27", "value": 1558.0}, {"date": "2026-05-28", "value": 1348.0}, {"date": "2026-05-29", "value": 1210.0}];
+const lineDailyData = {"bakerloo": {"2026-02-09": 706.0, "2026-02-10": 332.0, "2026-02-11": 190.0, "2026-02-12": 138.0, "2026-02-13": 60.0, "2026-02-16": 714.0, "2026-02-17": 462.0, "2026-02-18": 480.0, "2026-02-19": 136.0, "2026-02-20": 148.0, "2026-02-23": 240.0, "2026-02-24": 426.0, "2026-02-25": 188.0, "2026-02-26": 10.0, "2026-02-27": 298.0, "2026-03-02": 172.0, "2026-03-03": 438.0, "2026-03-04": 418.0, "2026-03-05": 328.0, "2026-03-06": 284.0, "2026-03-09": 292.0, "2026-03-10": 80.0, "2026-03-11": 372.0, "2026-03-12": 424.0, "2026-03-13": 10.0, "2026-03-16": 320.0, "2026-03-17": 48.0, "2026-03-18": 402.0, "2026-03-19": 216.0, "2026-03-20": 4.0, "2026-03-24": 212.0, "2026-03-25": 94.0, "2026-03-26": 88.0, "2026-03-27": 582.0, "2026-03-30": 392.0, "2026-03-31": 70.0, "2026-04-02": 190.0, "2026-04-03": 1188.0, "2026-04-06": 1194.0, "2026-04-07": 182.0, "2026-04-08": 700.0, "2026-04-09": 110.0, "2026-04-10": 120.0, "2026-04-14": 246.0, "2026-04-15": 440.0, "2026-04-16": 600.0, "2026-04-17": 416.0, "2026-04-20": 36.0, "2026-04-21": 658.0, "2026-04-22": 758.0, "2026-04-23": 662.0, "2026-04-24": 790.0, "2026-04-27": 364.0, "2026-04-28": 26.0, "2026-04-29": 234.0, "2026-05-07": 200.0, "2026-05-08": 138.0, "2026-05-11": 38.0, "2026-05-12": 66.0, "2026-05-13": 190.0, "2026-05-15": 120.0, "2026-05-19": 18.0, "2026-05-20": 124.0, "2026-05-25": 382.0, "2026-05-26": 140.0, "2026-05-27": 714.0, "2026-05-28": 246.0, "2026-05-29": 136.0}, "circle": {"2026-02-10": 68.0, "2026-02-11": 44.0, "2026-02-12": 140.0, "2026-02-16": 54.0, "2026-02-18": 144.0, "2026-02-19": 148.0, "2026-02-20": 88.0, "2026-02-24": 92.0, "2026-02-26": 80.0, "2026-02-27": 48.0, "2026-03-02": 90.0, "2026-03-09": 408.0, "2026-03-12": 80.0, "2026-03-16": 540.0, "2026-03-17": 524.0, "2026-03-18": 520.0, "2026-03-19": 112.0, "2026-03-20": 28.0, "2026-03-23": 58.0, "2026-03-24": 356.0, "2026-03-25": 162.0, "2026-03-27": 74.0, "2026-04-01": 210.0, "2026-04-02": 412.0, "2026-04-06": 70.0, "2026-04-08": 228.0, "2026-04-09": 246.0, "2026-04-13": 254.0, "2026-04-14": 116.0, "2026-04-20": 176.0, "2026-04-21": 914.0, "2026-04-22": 994.0, "2026-04-23": 876.0, "2026-04-24": 762.0, "2026-04-27": 304.0, "2026-04-28": 18.0, "2026-04-29": 66.0, "2026-04-30": 132.0, "2026-05-01": 550.0, "2026-05-05": 86.0, "2026-05-06": 38.0, "2026-05-07": 66.0, "2026-05-08": 48.0, "2026-05-11": 342.0, "2026-05-12": 146.0, "2026-05-13": 26.0, "2026-05-14": 208.0, "2026-05-18": 192.0, "2026-05-19": 424.0, "2026-05-20": 174.0, "2026-05-21": 80.0, "2026-05-22": 242.0, "2026-05-25": 126.0, "2026-05-26": 690.0, "2026-05-27": 428.0, "2026-05-28": 672.0, "2026-05-29": 668.0}, "hammersmith-city": {"2026-03-02": 90.0, "2026-03-16": 90.0, "2026-04-21": 250.0, "2026-04-22": 772.0, "2026-04-23": 172.0, "2026-04-24": 200.0, "2026-05-19": 184.0, "2026-05-28": 170.0}, "metropolitan": {"2026-01-22": 16.0, "2026-01-23": 252.0, "2026-01-26": 318.0, "2026-01-29": 68.0, "2026-01-30": 300.0, "2026-02-02": 246.0, "2026-02-03": 448.0, "2026-02-04": 100.0, "2026-02-06": 344.0, "2026-02-09": 60.0, "2026-02-10": 244.0, "2026-02-11": 80.0, "2026-02-12": 92.0, "2026-02-13": 86.0, "2026-02-16": 192.0, "2026-02-17": 56.0, "2026-02-18": 120.0, "2026-02-19": 1168.0, "2026-02-20": 1440.0, "2026-02-23": 334.0, "2026-02-24": 414.0, "2026-02-25": 54.0, "2026-02-26": 62.0, "2026-02-27": 168.0, "2026-03-03": 314.0, "2026-03-04": 170.0, "2026-03-05": 136.0, "2026-03-09": 410.0, "2026-03-10": 288.0, "2026-03-11": 288.0, "2026-03-12": 230.0, "2026-03-13": 226.0, "2026-03-16": 372.0, "2026-03-17": 34.0, "2026-03-18": 1160.0, "2026-03-19": 172.0, "2026-03-20": 656.0, "2026-03-23": 42.0, "2026-03-24": 346.0, "2026-03-25": 194.0, "2026-03-26": 88.0, "2026-03-27": 374.0, "2026-03-30": 318.0, "2026-03-31": 16.0, "2026-04-01": 124.0, "2026-04-02": 284.0, "2026-04-03": 210.0, "2026-04-06": 36.0, "2026-04-07": 154.0, "2026-04-08": 78.0, "2026-04-09": 162.0, "2026-04-10": 464.0, "2026-04-13": 146.0, "2026-04-14": 54.0, "2026-04-17": 92.0, "2026-04-20": 86.0, "2026-04-21": 822.0, "2026-04-22": 1228.0, "2026-04-23": 896.0, "2026-04-24": 1216.0, "2026-04-27": 264.0, "2026-04-28": 76.0, "2026-04-29": 216.0, "2026-04-30": 476.0, "2026-05-01": 106.0, "2026-05-04": 1440.0, "2026-05-05": 200.0, "2026-05-08": 62.0, "2026-05-11": 446.0, "2026-05-13": 14.0, "2026-05-14": 562.0, "2026-05-15": 98.0, "2026-05-18": 88.0, "2026-05-19": 12.0, "2026-05-20": 134.0, "2026-05-21": 82.0, "2026-05-22": 194.0, "2026-05-25": 328.0, "2026-05-26": 94.0, "2026-05-27": 416.0, "2026-05-28": 260.0, "2026-05-29": 406.0}};
+const streakData = {"bakerloo": {"max_minutes": 1218, "avg_minutes": 178.2, "count": 119}, "circle": {"max_minutes": 770, "avg_minutes": 137.4, "count": 108}, "hammersmith-city": {"max_minutes": 752, "avg_minutes": 214.2, "count": 9}, "metropolitan": {"max_minutes": 2698, "avg_minutes": 140.9, "count": 174}};
+const streakDist = {"bakerloo": {"20": 4, "120": 58, "100": 4, "30": 4, "60": 7, "110": 3, "0": 4, "50": 4, "90": 7, "40": 8, "10": 6, "80": 5, "70": 5}, "circle": {"60": 5, "40": 12, "90": 8, "30": 6, "10": 5, "50": 11, "120": 35, "70": 9, "0": 4, "80": 3, "100": 3, "110": 2, "20": 5}, "hammersmith-city": {"90": 2, "120": 6, "50": 1}, "metropolitan": {"10": 14, "50": 16, "20": 12, "60": 17, "80": 10, "120": 42, "100": 4, "40": 18, "90": 12, "30": 15, "70": 7, "110": 4, "0": 3}};
+const escalations = {"metropolitan": {"Minor Delays \u2192 Part Suspended": 24, "Part Suspended \u2192 Severe Delays": 37, "Severe Delays \u2192 Part Suspended": 25, "Severe Delays \u2192 Minor Delays": 51, "Minor Delays \u2192 Severe Delays": 39, "Part Suspended \u2192 Minor Delays": 12}, "bakerloo": {"Minor Delays \u2192 Part Suspended": 24, "Part Suspended \u2192 Severe Delays": 18, "Severe Delays \u2192 Minor Delays": 32, "Part Suspended \u2192 Minor Delays": 10, "Minor Delays \u2192 Severe Delays": 19, "Severe Delays \u2192 Part Suspended": 4}, "circle": {"Minor Delays \u2192 Severe Delays": 30, "Severe Delays \u2192 Minor Delays": 36, "Minor Delays \u2192 Part Suspended": 9, "Part Suspended \u2192 Severe Delays": 11, "Part Suspended \u2192 Minor Delays": 3, "Severe Delays \u2192 Part Suspended": 5}};
+const reliability = {"bakerloo": {"good_pct": 78.1, "disrupted_pct": 21.9, "breakdown": {"Good Service": 78.1, "Minor Delays": 11.3, "Severe Delays": 6.0, "Part Closure": 2.5, "Suspended": 0.9, "Part Suspended": 0.8, "Special Service": 0.4}, "total_checks": 49328}, "circle": {"good_pct": 84.4, "disrupted_pct": 15.6, "breakdown": {"Good Service": 84.4, "Minor Delays": 7.0, "Suspended": 3.9, "Severe Delays": 3.7, "Special Service": 0.4, "Part Closure": 0.3, "Part Suspended": 0.3}, "total_checks": 48800}, "hammersmith-city": {"good_pct": 97.2, "disrupted_pct": 2.8, "breakdown": {"Good Service": 97.2, "Suspended": 1.1, "Severe Delays": 1.0, "Special Service": 0.5, "Part Closure": 0.2}, "total_checks": 41951}, "metropolitan": {"good_pct": 78.8, "disrupted_pct": 21.2, "breakdown": {"Good Service": 78.8, "Minor Delays": 9.3, "Severe Delays": 6.2, "Part Closure": 3.8, "Part Suspended": 0.9, "Suspended": 0.7, "Special Service": 0.3}, "total_checks": 58749}};
+const allWeeks = ["2026-W03", "2026-W04", "2026-W05", "2026-W06", "2026-W07", "2026-W08", "2026-W09", "2026-W10", "2026-W11", "2026-W12", "2026-W13", "2026-W14", "2026-W15", "2026-W16", "2026-W17", "2026-W18", "2026-W19", "2026-W20", "2026-W21"];
+
+Chart.defaults.color = '#7b8ba8';
+Chart.defaults.borderColor = '#1e2a42';
+Chart.defaults.font.family = "'Segoe UI', sans-serif";
+
+// ── Weekly Trend Chart ─────────────────────────────────────────────────
+new Chart(document.getElementById('weeklyTrend'), {
+  type: 'line',
+  data: {
+    labels: allWeeks.map(w => w.replace('2026-', '')),
+    datasets: Object.entries(weeklyTrend).map(([line, data]) => {
+      const weekMap = Object.fromEntries(data.map(d => [d.week, d.pct]));
+      return {
+        label: LINE_LABELS[line],
+        data: allWeeks.map(w => weekMap[w] || 0),
+        borderColor: LINE_COLORS[line],
+        backgroundColor: LINE_COLORS[line] + '20',
+        fill: false,
+        tension: 0.3,
+        pointRadius: 3,
+        borderWidth: 2
+      };
+    })
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top', labels: { usePointStyle: true, padding: 15 } },
+      tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + '% disrupted' } }
+    },
+    scales: {
+      y: { title: { display: true, text: 'Disruption %' }, beginAtZero: true },
+      x: { title: { display: true, text: 'Week' } }
+    }
+  }
+});
+
+// ── Heatmap Charts ─────────────────────────────────────────────────────
+const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+const hourLabels = Array.from({length: 19}, (_, i) => (i + 5).toString().padStart(2, '0') + ':00');
+
+function createHeatmap(canvasId, line) {
+  const data = heatmapData[line] || [];
+  const maxVal = Math.max(...data.map(d => d.v), 1);
+  const ctx = document.getElementById(canvasId);
+  new Chart(ctx, {
+    type: 'matrix',
+    data: {
+      datasets: [{
+        label: LINE_LABELS[line],
+        data: data.map(d => ({ x: d.x - 4, y: d.y + 1, v: d.v })),
+        backgroundColor: (ctx) => {
+          const v = ctx.raw?.v || 0;
+          if (v === 0) return '#0e1726';
+          const t = Math.min(v / Math.max(maxVal * 0.7, 20), 1);
+          if (t < 0.33) return `rgba(37, 99, 235, ${0.3 + t * 2})`;
+          if (t < 0.66) return `rgba(245, 158, 11, ${0.5 + (t - 0.33) * 1.5})`;
+          return `rgba(239, 68, 68, ${0.7 + (t - 0.66) * 0.9})`;
+        },
+        width: (ctx) => (ctx.chart.chartArea?.width || 300) / 19 - 2,
+        height: (ctx) => (ctx.chart.chartArea?.height || 150) / 5 - 2
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        title: { display: true, text: LINE_LABELS[line], color: LINE_COLORS[line], font: { size: 13 } },
+        tooltip: { callbacks: { label: ctx => `${dayLabels[ctx.raw.y - 1]} ${(ctx.raw.x + 4).toString().padStart(2, '0')}:00 — ${ctx.raw.v}% disrupted` } }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          offset: true,
+          min: 0.5, max: 19.5,
+          ticks: { stepSize: 1, callback: (v) => (v + 4).toString().padStart(2, '0') },
+          title: { display: true, text: 'Hour' }
+        },
+        y: {
+          type: 'linear',
+          offset: true,
+          min: 0.5, max: 5.5,
+          ticks: { stepSize: 1, callback: (v) => dayLabels[v - 1] || '' },
+          reverse: false
+        }
+      }
+    }
+  });
+}
+
+createHeatmap('heatmapMet', 'metropolitan');
+createHeatmap('heatmapBak', 'bakerloo');
+createHeatmap('heatmapCir', 'circle');
+createHeatmap('heatmapHC', 'hammersmith-city');
+
+// ── Cause Analysis ─────────────────────────────────────────────────────
+new Chart(document.getElementById('causes'), {
+  type: 'bar',
+  data: {
+    labels: causeLabels,
+    datasets: [{
+      data: causeValues,
+      backgroundColor: causeLabels.map((_, i) => {
+        const colors = ['#3b82f6', '#f59e0b', '#ef4444', '#10b981', '#8b5cf6', '#f97316', '#06b6d4', '#ec4899', '#84cc16', '#6366f1', '#14b8a6', '#e11d48', '#a855f7', '#0ea5e9', '#65a30d', '#d946ef'];
+        return colors[i % colors.length];
+      }),
+      borderRadius: 4,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ctx.raw + ' incidents' } } },
+    scales: { x: { title: { display: true, text: 'Incidents' }, beginAtZero: true }, y: { ticks: { font: { size: 11 } } } }
+  }
+});
+
+// ── Peak vs Off-Peak ───────────────────────────────────────────────────
+new Chart(document.getElementById('peakOffpeak'), {
+  type: 'bar',
+  data: {
+    labels: Object.keys(LINE_LABELS).map(k => LINE_LABELS[k]),
+    datasets: ['AM Peak (07-09)', 'PM Peak (17-19)', 'Off-Peak'].map((period, i) => ({
+      label: period,
+      data: Object.keys(LINE_LABELS).map(line => peakOffpeak[line]?.[period] || 0),
+      backgroundColor: ['#3b82f6', '#f59e0b', '#1e2a42'][i],
+      borderRadius: 4
+    }))
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'top', labels: { usePointStyle: true, padding: 12 } },
+      tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + '% disrupted' } }
+    },
+    scales: {
+      y: { title: { display: true, text: 'Disruption %' }, beginAtZero: true },
+      x: { ticks: { font: { size: 10 } } }
+    }
+  }
+});
+
+// ── Correlation Table ──────────────────────────────────────────────────
+(function() {
+  const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+  const table = document.getElementById('corrTable');
+  let html = '<tr><th></th>' + lines.map(l => '<th>' + LINE_LABELS[l] + '</th>').join('') + '</tr>';
+  lines.forEach(a => {
+    html += '<tr><th style="text-align:left">' + LINE_LABELS[a] + '</th>';
+    lines.forEach(b => {
+      if (a === b) {
+        html += '<td style="background:#1e2a42;color:#7b8ba8">—</td>';
+      } else {
+        const val = correlation[a]?.[b] || 0;
+        const intensity = Math.min(val / 50, 1);
+        const bg = `rgba(239, 68, 68, ${intensity * 0.5})`;
+        html += `<td style="background:${bg};font-weight:600">${val}%</td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  table.innerHTML = html;
+})();
+
+// ── Streak Distribution ────────────────────────────────────────────────
+(function() {
+  const bins = ['0', '10', '20', '30', '40', '50', '60', '90', '120'];
+  const binLabels = ['0-10m', '10-20m', '20-30m', '30-40m', '40-50m', '50-60m', '60-90m', '90-120m', '120m+'];
+  const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+
+  new Chart(document.getElementById('streakDist'), {
+    type: 'bar',
+    data: {
+      labels: binLabels,
+      datasets: lines.map(line => ({
+        label: LINE_LABELS[line],
+        data: bins.map(b => streakDist[line]?.[b] || 0),
+        backgroundColor: LINE_COLORS[line] + 'cc',
+        borderRadius: 3
+      }))
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + ' episodes' } }
+      },
+      scales: {
+        y: { title: { display: true, text: 'Episodes' }, beginAtZero: true },
+        x: { title: { display: true, text: 'Duration' } }
+      }
+    }
+  });
+})();
+
+// ── Calendar Heatmap ───────────────────────────────────────────────────
+(function() {
+  const container = document.getElementById('calendarHeatmap');
+  if (!calendarData.length) return;
+
+  const maxVal = Math.max(...calendarData.map(d => d.value));
+  const getColor = (v) => {
+    if (v === 0) return '#0e1726';
+    const t = v / maxVal;
+    if (t < 0.15) return '#0e1726';
+    if (t < 0.3) return '#1a3a5c';
+    if (t < 0.5) return '#2563eb';
+    if (t < 0.75) return '#f59e0b';
+    return '#ef4444';
+  };
+
+  // Group by week
+  const weeks = {};
+  calendarData.forEach(d => {
+    const dt = new Date(d.date);
+    const weekStart = new Date(dt);
+    weekStart.setDate(dt.getDate() - dt.getDay() + 1);
+    const key = weekStart.toISOString().slice(0, 10);
+    if (!weeks[key]) weeks[key] = [];
+    weeks[key].push(d);
+  });
+
+  let html = '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:flex-start">';
+  const weekKeys = Object.keys(weeks).sort();
+
+  // Month labels
+  let currentMonth = '';
+  weekKeys.forEach(wk => {
+    const month = wk.slice(0, 7);
+    if (month !== currentMonth) {
+      currentMonth = month;
+      const monthName = new Date(wk).toLocaleString('en', { month: 'short' });
+    }
+  });
+
+  weekKeys.forEach(wk => {
+    html += '<div style="display:flex;flex-direction:column;gap:3px">';
+    const days = weeks[wk].sort((a, b) => a.date.localeCompare(b.date));
+    // Pad to 7 days
+    const dayMap = Object.fromEntries(days.map(d => [new Date(d.date).getDay(), d]));
+    for (let dow = 1; dow <= 5; dow++) {
+      const d = dayMap[dow];
+      if (d) {
+        const lineBreakdown = Object.entries(lineDailyData).map(([line, data]) => {
+          const mins = data[d.date] || 0;
+          return mins > 0 ? LINE_LABELS[line] + ': ' + mins + 'm' : '';
+        }).filter(Boolean).join(', ');
+        html += `<div class="cal-cell" style="background:${getColor(d.value)}" data-tip="${d.date}: ${d.value}m total (${lineBreakdown || 'No disruption'})"></div>`;
+      } else {
+        html += '<div style="width:20px;height:20px"></div>';
+      }
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+})();
+
+// ── Escalation Chart ───────────────────────────────────────────────────
+(function() {
+  const allTransitions = {};
+  Object.entries(escalations).forEach(([line, trans]) => {
+    Object.entries(trans).forEach(([t, count]) => {
+      if (!allTransitions[t]) allTransitions[t] = {};
+      allTransitions[t][line] = count;
+    });
+  });
+
+  const transLabels = Object.keys(allTransitions);
+  const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+
+  new Chart(document.getElementById('escalation'), {
+    type: 'bar',
+    data: {
+      labels: transLabels,
+      datasets: lines.map(line => ({
+        label: LINE_LABELS[line],
+        data: transLabels.map(t => allTransitions[t]?.[line] || 0),
+        backgroundColor: LINE_COLORS[line] + 'cc',
+        borderRadius: 3
+      }))
+    },
+    options: {
+      responsive: true,
+      indexAxis: 'y',
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + ' transitions' } }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Occurrences' }, beginAtZero: true, stacked: true },
+        y: { ticks: { font: { size: 10 } }, stacked: true }
+      }
+    }
+  });
+})();
+
+// ── Disruption Composition by Line ─────────────────────────────────────
+(function() {
+  const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+  const statuses = ['Minor Delays', 'Severe Delays', 'Part Suspended', 'Part Closure', 'Suspended'];
+  const statusColors = {
+    'Minor Delays': '#f59e0b',
+    'Severe Delays': '#ef4444',
+    'Part Suspended': '#dc2626',
+    'Part Closure': '#7c3aed',
+    'Suspended': '#991b1b'
+  };
+
+  new Chart(document.getElementById('composition'), {
+    type: 'bar',
+    data: {
+      labels: lines.map(l => LINE_LABELS[l]),
+      datasets: statuses.map(status => ({
+        label: status,
+        data: lines.map(line => reliability[line]?.breakdown?.[status] || 0),
+        backgroundColor: statusColors[status],
+        borderRadius: 2
+      }))
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, padding: 12 } },
+        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' } }
+      },
+      scales: {
+        x: { stacked: true },
+        y: { stacked: true, title: { display: true, text: 'Disrupted time %' } }
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

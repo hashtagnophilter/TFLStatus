@@ -49,6 +49,11 @@ Set these in Azure Function App settings (and in `local.settings.json` for local
 
 - `STORAGE_CONNECTION_STRING` (required)
 - `TABLE_NAME` (optional; used by Metropolitan monitor, default `MetropolitanLineDelays`)
+- `TIMELINESS_BLOB_CONNECTION_STRING` (recommended for timeliness artifacts; if omitted, timeliness falls back to `STORAGE_CONNECTION_STRING`, then `AzureWebJobsStorage`)
+- `TIMELINESS_BLOB_CONTAINER` (optional; defaults to `$web`)
+- `DASHBOARD_BLOB_CONNECTION_STRING` (optional; if omitted, dashboard publishing falls back to `STORAGE_CONNECTION_STRING`)
+- `DASHBOARD_BLOB_CONTAINER` (optional; defaults to `$web`)
+- `PUBLISH_TO_BLOB` (optional; set to `true` to upload the public dashboard assets)
 
 > Important: `local.settings.json` contains local secrets and should not be committed.
 
@@ -108,7 +113,7 @@ A separate module (`train_timeliness.py`) calculates real-time on-time performan
 ### Running locally
 
 ```bash
-pip install requests
+pip install -r requirements.txt
 python train_timeliness.py
 ```
 
@@ -116,26 +121,37 @@ This creates `timeliness_data/` (JSON snapshots) and `timeliness_report.html`.
 
 A sample `timeliness_report.html` generated from synthetic timetable/prediction data is checked into the repo for quick reference to the layout and metrics. Running `python train_timeliness.py` against the live TfL API will regenerate the report and populate `timeliness_data/` with real snapshots.
 
-### Live dashboard
+### Isolation from `tfl-metropolitan-monitor`
 
-The report is published as a live webpage via GitHub Pages:
+Timeliness logic is intentionally **not** wired into `/home/runner/work/TFLStatus/TFLStatus/function_app.py` and does not add timer/HTTP triggers to the existing status-monitor Function App.
 
-**[https://hashtagnophilter.github.io/TFLStatus/](https://hashtagnophilter.github.io/TFLStatus/)**
+To keep deployments isolated, run timeliness as a separate process:
 
-It updates automatically every 5 minutes during operating hours (Mon–Fri, 8 AM–midnight UTC).
-
-> **One-time setup** (repo owner only): Go to **Settings → Pages** and set the source to **"GitHub Actions"**. The next workflow run will deploy the page automatically.
-
-### GitHub Actions workflow
-
-The workflow `.github/workflows/train-timeliness.yml` runs automatically:
-
-- **Schedule**: Every 5 minutes, 8 AM–midnight UTC, Monday–Friday
-- **Manual trigger**: Available via `workflow_dispatch`
-- Collects a snapshot, generates the HTML report, commits results back to the repo, and deploys the live dashboard to GitHub Pages
+- locally via `python train_timeliness.py`, or
+- via `.github/workflows/train-timeliness.yml` (scheduled GitHub Actions workflow).
 
 ### Running tests
 
 ```bash
 python -m unittest tests.test_train_timeliness -v
 ```
+
+### Publishing the line status dashboard to Azure Storage static website hosting
+
+1. Set `STORAGE_CONNECTION_STRING` for the storage account that holds your TfL tables.
+2. Set `PUBLISH_TO_BLOB=true`.
+3. Optionally set `DASHBOARD_BLOB_CONNECTION_STRING` or `DASHBOARD_BLOB_CONTAINER` if you want to publish somewhere other than the default `$web` container.
+4. Run:
+   ```bash
+   python generate_visualisations.py
+   ```
+
+This generates `tfl_status_dashboard.html`, `tfl_status_dashboard_v2.html`, and `latest_dashboard_data.json`.
+
+When publishing is enabled, the script uploads:
+
+- `index.html`
+- `tfl_status_dashboard_v2.html`
+- `latest_dashboard_data.json`
+
+to the Azure Storage static website container so the dashboard is publicly viewable on the internet.

@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TFL Line Status Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Roboto:wght@300;400;500;600&family=Inconsolata:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-matrix@2.0.1/dist/chartjs-chart-matrix.min.js"></script>
+<style>
+  :root {
+    --primary: #3B82F6;
+    --surface: #FFFFFF;
+    --surface-alt: #F9FAFB;
+    --border: #E5E7EB;
+    --border-light: #F3F4F6;
+    --text: #111827;
+    --text-secondary: #6B7280;
+    --text-muted: #9CA3AF;
+    --radius: 8px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --met: #9B0056;
+    --bak: #B36305;
+    --cir: #D4A800;
+    --hc: #D77DA0;
+  }
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--surface-alt);
+    color: var(--text);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 32px 32px 24px;
+  }
+  .header-inner {
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+  .header h1 {
+    font-family: 'Poppins', sans-serif;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.3px;
+  }
+  .header h1 span { color: var(--primary); }
+  .header p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+  .meta-chips {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .chip .num {
+    font-family: 'Inconsolata', monospace;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .dashboard {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .row {
+    display: grid;
+    gap: 24px;
+  }
+  .row.cols-2 { grid-template-columns: 1fr 1fr; }
+  .row.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    box-shadow: var(--shadow-sm);
+  }
+  .card h2 {
+    font-family: 'Poppins', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .card .desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    line-height: 1.4;
+  }
+  .card canvas {
+    width: 100% !important;
+    max-height: 320px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    box-shadow: var(--shadow-sm);
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .kpi.met::after { background: var(--met); }
+  .kpi.bak::after { background: var(--bak); }
+  .kpi.cir::after { background: var(--cir); }
+  .kpi.hc::after { background: var(--hc); }
+  .kpi-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .kpi-value {
+    font-family: 'Poppins', sans-serif;
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 4px 0;
+  }
+  .kpi.met .kpi-value { color: var(--met); }
+  .kpi.bak .kpi-value { color: var(--bak); }
+  .kpi.cir .kpi-value { color: var(--cir); }
+  .kpi.hc .kpi-value { color: var(--hc); }
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .heatmap-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .heatmap-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .heatmap-item .hm-label {
+    font-family: 'Poppins', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    padding-left: 4px;
+  }
+  .heatmap-item canvas {
+    width: 100% !important;
+    height: 100px !important;
+  }
+  .corr-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .corr-table th, .corr-table td {
+    padding: 10px 12px;
+    text-align: center;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .corr-table th {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .corr-table td {
+    font-family: 'Inconsolata', monospace;
+    font-weight: 500;
+  }
+  .cal-wrap {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .cal-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .cal-cell {
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+  }
+  .cal-cell:hover { opacity: 0.8; }
+  .cal-cell[data-tip]:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: var(--surface);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .cal-legend {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .cal-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+  }
+  @media (max-width: 768px) {
+    .header { padding: 24px 16px 20px; }
+    .dashboard { padding: 16px; gap: 16px; }
+    .row.cols-2 { grid-template-columns: 1fr; }
+    .row.cols-4 { grid-template-columns: repeat(2, 1fr); }
+    .kpi-value { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-inner">
+    <h1>TFL <span>Line Status Intelligence</span></h1>
+    <p>Monitoring disruption patterns across London Underground lines</p>
+    <div class="meta-chips">
+      <div class="chip">Period <span class="num">2026-01-22 → 2026-05-29</span></div>
+      <div class="chip">Checks <span class="num">198,828</span></div>
+      <div class="chip">Incidents <span class="num">634</span></div>
+      <div class="chip">Lines <span class="num">4</span></div>
+    </div>
+  </div>
+</div>
+<div class="dashboard">
+  <div id="dashboardError" class="card" style="display:none;border-color:#FECACA;background:#FEF2F2;color:#991B1B"></div>
+  <div class="row cols-4">
+    <div class="kpi met">
+      <div class="kpi-label">Metropolitan</div>
+      <div class="kpi-value">78.8%</div>
+      <div class="kpi-sub">Service reliability</div>
+    </div>
+    <div class="kpi bak">
+      <div class="kpi-label">Bakerloo</div>
+      <div class="kpi-value">78.1%</div>
+      <div class="kpi-sub">Service reliability</div>
+    </div>
+    <div class="kpi cir">
+      <div class="kpi-label">Circle</div>
+      <div class="kpi-value">84.4%</div>
+      <div class="kpi-sub">Service reliability</div>
+    </div>
+    <div class="kpi hc">
+      <div class="kpi-label">Hammersmith &amp; City</div>
+      <div class="kpi-value">97.2%</div>
+      <div class="kpi-sub">Service reliability</div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="card">
+      <h2>Disruption Trend by Week</h2>
+      <div class="desc">Percentage of operating time spent in a disrupted status, week over week.</div>
+      <canvas id="weeklyTrend"></canvas>
+    </div>
+  </div>
+  <div class="row">
+    <div class="card">
+      <h2>Disruption Risk by Hour &amp; Day</h2>
+      <div class="desc">Probability of disruption at each hour on each weekday. Darker cells indicate higher risk.</div>
+      <div class="heatmap-stack">
+        <div class="heatmap-item"><div class="hm-label" style="color:var(--met)">Metropolitan</div><canvas id="hmMet"></canvas></div>
+        <div class="heatmap-item"><div class="hm-label" style="color:var(--bak)">Bakerloo</div><canvas id="hmBak"></canvas></div>
+        <div class="heatmap-item"><div class="hm-label" style="color:var(--cir)">Circle</div><canvas id="hmCir"></canvas></div>
+        <div class="heatmap-item"><div class="hm-label" style="color:var(--hc)">Hammersmith &amp; City</div><canvas id="hmHC"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="row cols-2">
+    <div class="card">
+      <h2>Root Cause Analysis</h2>
+      <div class="desc">Delay reasons categorised from 634 incident reports.</div>
+      <canvas id="causes"></canvas>
+    </div>
+    <div class="card">
+      <h2>Rush Hour Impact</h2>
+      <div class="desc">Disruption rates during AM peak, PM peak, and off-peak hours.</div>
+      <canvas id="peakOffpeak"></canvas>
+    </div>
+  </div>
+  <div class="row cols-2">
+    <div class="card">
+      <h2>Cross-Line Disruption Cascade</h2>
+      <div class="desc">When one line is disrupted, how often is another simultaneously affected?</div>
+      <table class="corr-table" id="corrTable"></table>
+    </div>
+    <div class="card">
+      <h2>Disruption Duration Distribution</h2>
+      <div class="desc">How long do continuous disruption episodes last once they begin?</div>
+      <canvas id="streakDist"></canvas>
+    </div>
+  </div>
+  <div class="row">
+    <div class="card">
+      <h2>Daily Disruption Calendar</h2>
+      <div class="desc">Each cell represents one weekday. Colour intensity shows total disruption minutes across all lines.</div>
+      <div id="calendarHeatmap" class="cal-wrap"></div>
+      <div class="cal-legend">
+        <span>Less</span>
+        <div class="cal-swatch" style="background:#EFF6FF"></div>
+        <div class="cal-swatch" style="background:#BFDBFE"></div>
+        <div class="cal-swatch" style="background:#3B82F6"></div>
+        <div class="cal-swatch" style="background:#D97706"></div>
+        <div class="cal-swatch" style="background:#DC2626"></div>
+        <span>More</span>
+      </div>
+    </div>
+  </div>
+  <div class="row cols-2">
+    <div class="card">
+      <h2>Severity Escalation Patterns</h2>
+      <div class="desc">How often do delays transition between severity levels?</div>
+      <canvas id="escalation"></canvas>
+    </div>
+    <div class="card">
+      <h2>Disruption Composition</h2>
+      <div class="desc">Breakdown of disruption types for each line by severity.</div>
+      <canvas id="composition"></canvas>
+    </div>
+  </div>
+</div>
+<script>
+const DATA_URL = "latest_dashboard_data.json";
+const LINE_COLORS = {"metropolitan": "#9B0056", "bakerloo": "#B36305", "circle": "#FFD300", "hammersmith-city": "#F3A9BB"};
+const LINE_LABELS = {"metropolitan": "Metropolitan", "bakerloo": "Bakerloo", "circle": "Circle", "hammersmith-city": "Hammersmith & City"};
+const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+
+Chart.defaults.color = '#6B7280';
+Chart.defaults.borderColor = '#F3F4F6';
+Chart.defaults.font.family = "'Roboto', sans-serif";
+Chart.defaults.font.size = 12;
+
+function showError(message) {
+  const errorCard = document.getElementById('dashboardError');
+  errorCard.textContent = message;
+  errorCard.style.display = 'block';
+}
+
+function renderDashboard(dashboardData) {
+  const weeklyTrend = dashboardData.weeklyTrend || {};
+  const heatmapData = dashboardData.heatmapData || {};
+  const causeLabels = dashboardData.causeLabels || [];
+  const causeValues = dashboardData.causeValues || [];
+  const peakOffpeak = dashboardData.peakOffpeak || {};
+  const correlation = dashboardData.correlation || {};
+  const calendarData = dashboardData.calendarData || [];
+  const lineDailyData = dashboardData.lineDailyData || {};
+  const streakDist = dashboardData.streakDist || {};
+  const escalations = dashboardData.escalations || {};
+  const reliability = dashboardData.reliability || {};
+  const allWeeks = dashboardData.allWeeks || [];
+
+  new Chart(document.getElementById('weeklyTrend'), {
+    type: 'line',
+    data: {
+      labels: allWeeks.map(w => w.replace(/^\d{4}-/, '')),
+      datasets: Object.entries(weeklyTrend).map(([line, data]) => {
+        const weekMap = Object.fromEntries(data.map(d => [d.week, d.pct]));
+        return {
+          label: LINE_LABELS[line],
+          data: allWeeks.map(w => weekMap[w] || 0),
+          borderColor: LINE_COLORS[line],
+          backgroundColor: LINE_COLORS[line] + '18',
+          fill: false,
+          tension: 0.35,
+          pointRadius: 2,
+          pointHoverRadius: 5,
+          borderWidth: 2
+        };
+      })
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 16, font: { size: 11 } } },
+        tooltip: { backgroundColor: '#111827', titleFont: { size: 12 }, bodyFont: { size: 12 }, padding: 10, cornerRadius: 6, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' } }
+      },
+      scales: {
+        y: { title: { display: true, text: 'Disruption %', font: { size: 11 } }, beginAtZero: true, grid: { color: '#F3F4F6' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  function createHeatmap(canvasId, line) {
+    const data = heatmapData[line] || [];
+    const maxVal = Math.max(...data.map(d => d.v), 1);
+    new Chart(document.getElementById(canvasId), {
+      type: 'matrix',
+      data: {
+        datasets: [{
+          data: data.map(d => ({ x: d.x - 4, y: d.y + 1, v: d.v })),
+          backgroundColor: (ctx) => {
+            const v = ctx.raw?.v || 0;
+            if (v === 0) return '#F9FAFB';
+            const t = Math.min(v / Math.max(maxVal * 0.7, 20), 1);
+            if (t < 0.25) return '#DBEAFE';
+            if (t < 0.45) return '#93C5FD';
+            if (t < 0.65) return '#3B82F6';
+            if (t < 0.8) return '#D97706';
+            return '#DC2626';
+          },
+          borderColor: '#FFFFFF',
+          borderWidth: 1.5,
+          width: (ctx) => (ctx.chart.chartArea?.width || 300) / 19 - 1,
+          height: (ctx) => (ctx.chart.chartArea?.height || 80) / 5 - 1
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { backgroundColor: '#111827', cornerRadius: 6, padding: 8, callbacks: { title: () => '', label: ctx => `${dayLabels[ctx.raw.y - 1]} ${String(ctx.raw.x + 4).padStart(2, '0')}:00 — ${ctx.raw.v}%` } }
+        },
+        scales: {
+          x: {
+            type: 'linear', offset: true, min: 0.5, max: 19.5,
+            ticks: { stepSize: 2, font: { size: 10 }, callback: v => String(v + 4).padStart(2, '0') },
+            grid: { display: false }
+          },
+          y: {
+            type: 'linear', offset: true, min: 0.5, max: 5.5,
+            ticks: { stepSize: 1, font: { size: 10 }, callback: v => dayLabels[v - 1] || '' },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+
+  createHeatmap('hmMet', 'metropolitan');
+  createHeatmap('hmBak', 'bakerloo');
+  createHeatmap('hmCir', 'circle');
+  createHeatmap('hmHC', 'hammersmith-city');
+
+  new Chart(document.getElementById('causes'), {
+    type: 'bar',
+    data: {
+      labels: causeLabels,
+      datasets: [{ data: causeValues, backgroundColor: '#3B82F6', hoverBackgroundColor: '#2563EB', borderRadius: 4, borderSkipped: false, barPercentage: 0.7 }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: '#111827', cornerRadius: 6, callbacks: { label: ctx => ctx.raw + ' incidents' } } },
+      scales: { x: { beginAtZero: true, grid: { color: '#F3F4F6' } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } }
+    }
+  });
+
+  new Chart(document.getElementById('peakOffpeak'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(LINE_LABELS).map(k => LINE_LABELS[k]),
+      datasets: [
+        { label: 'AM Peak (07–09)', data: Object.keys(LINE_LABELS).map(l => peakOffpeak[l]?.['AM Peak (07-09)'] || 0), backgroundColor: '#3B82F6', borderRadius: 4 },
+        { label: 'PM Peak (17–19)', data: Object.keys(LINE_LABELS).map(l => peakOffpeak[l]?.['PM Peak (17-19)'] || 0), backgroundColor: '#D97706', borderRadius: 4 },
+        { label: 'Off-Peak', data: Object.keys(LINE_LABELS).map(l => peakOffpeak[l]?.['Off-Peak'] || 0), backgroundColor: '#E5E7EB', borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 12, font: { size: 11 } } },
+        tooltip: { backgroundColor: '#111827', cornerRadius: 6, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' } }
+      },
+      scales: { y: { title: { display: true, text: 'Disruption %', font: { size: 11 } }, beginAtZero: true, grid: { color: '#F3F4F6' } }, x: { grid: { display: false }, ticks: { font: { size: 10 } } } }
+    }
+  });
+
+  (function() {
+    const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+    const table = document.getElementById('corrTable');
+    let h = '<thead><tr><th></th>' + lines.map(l => '<th>' + LINE_LABELS[l] + '</th>').join('') + '</tr></thead><tbody>';
+    lines.forEach(a => {
+      h += '<tr><th style="text-align:left;font-weight:500">' + LINE_LABELS[a] + '</th>';
+      lines.forEach(b => {
+        if (a === b) {
+          h += '<td style="color:#D1D5DB">—</td>';
+        } else {
+          const val = correlation[a]?.[b] || 0;
+          const intensity = Math.min(val / 50, 1);
+          h += `<td style="background:rgba(220,38,38,${intensity * 0.15});font-weight:600">${val}%</td>`;
+        }
+      });
+      h += '</tr>';
+    });
+    h += '</tbody>';
+    table.innerHTML = h;
+  })();
+
+  (function() {
+    const bins = ['0', '10', '20', '30', '40', '50', '60', '90', '120'];
+    const binLabels = ['0–10', '10–20', '20–30', '30–40', '40–50', '50–60', '60–90', '90–120', '120+'];
+    const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+    new Chart(document.getElementById('streakDist'), {
+      type: 'bar',
+      data: {
+        labels: binLabels,
+        datasets: lines.map(line => ({ label: LINE_LABELS[line], data: bins.map(b => streakDist[line]?.[b] || 0), backgroundColor: LINE_COLORS[line] + 'cc', borderRadius: 3 }))
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 12, font: { size: 11 } } },
+          tooltip: { backgroundColor: '#111827', cornerRadius: 6, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + ' episodes' } }
+        },
+        scales: {
+          y: { title: { display: true, text: 'Episodes', font: { size: 11 } }, beginAtZero: true, grid: { color: '#F3F4F6' } },
+          x: { title: { display: true, text: 'Duration (minutes)', font: { size: 11 } }, grid: { display: false } }
+        }
+      }
+    });
+  })();
+
+  (function() {
+    const container = document.getElementById('calendarHeatmap');
+    if (!calendarData.length) return;
+    const maxVal = Math.max(...calendarData.map(d => d.value));
+    const getColor = v => {
+      if (v === 0) return '#F3F4F6';
+      const t = v / maxVal;
+      if (t < 0.15) return '#EFF6FF';
+      if (t < 0.3) return '#BFDBFE';
+      if (t < 0.5) return '#3B82F6';
+      if (t < 0.75) return '#D97706';
+      return '#DC2626';
+    };
+    const weeks = {};
+    calendarData.forEach(d => {
+      const dt = new Date(d.date);
+      const ws = new Date(dt);
+      ws.setDate(dt.getDate() - dt.getDay() + 1);
+      const key = ws.toISOString().slice(0, 10);
+      if (!weeks[key]) weeks[key] = [];
+      weeks[key].push(d);
+    });
+    const wkKeys = Object.keys(weeks).sort();
+    let html = '';
+    wkKeys.forEach(wk => {
+      html += '<div class="cal-col">';
+      const dayMap = Object.fromEntries(weeks[wk].map(d => [new Date(d.date).getDay(), d]));
+      for (let dow = 1; dow <= 5; dow++) {
+        const d = dayMap[dow];
+        if (d) {
+          const lineInfo = Object.entries(lineDailyData).map(([line, data]) => {
+            const minutes = data[d.date] || 0;
+            return minutes > 0 ? LINE_LABELS[line] + ': ' + minutes + 'm' : '';
+          }).filter(Boolean).join(', ');
+          html += `<div class="cal-cell" style="background:${getColor(d.value)}" data-tip="${d.date} — ${d.value}m (${lineInfo || 'None'})"></div>`;
+        } else {
+          html += '<div style="width:18px;height:18px"></div>';
+        }
+      }
+      html += '</div>';
+    });
+    container.innerHTML = html;
+  })();
+
+  (function() {
+    const allTrans = {};
+    Object.entries(escalations).forEach(([line, transitions]) => {
+      Object.entries(transitions).forEach(([transition, count]) => {
+        if (!allTrans[transition]) allTrans[transition] = {};
+        allTrans[transition][line] = count;
+      });
+    });
+    const transitionLabels = Object.keys(allTrans);
+    const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+    new Chart(document.getElementById('escalation'), {
+      type: 'bar',
+      data: {
+        labels: transitionLabels,
+        datasets: lines.map(line => ({ label: LINE_LABELS[line], data: transitionLabels.map(t => allTrans[t]?.[line] || 0), backgroundColor: LINE_COLORS[line] + 'cc', borderRadius: 3 }))
+      },
+      options: {
+        responsive: true,
+        indexAxis: 'y',
+        plugins: {
+          legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 12, font: { size: 11 } } },
+          tooltip: { backgroundColor: '#111827', cornerRadius: 6, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw } }
+        },
+        scales: {
+          x: { beginAtZero: true, stacked: true, grid: { color: '#F3F4F6' } },
+          y: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } }
+        }
+      }
+    });
+  })();
+
+  (function() {
+    const lines = ['metropolitan', 'bakerloo', 'circle', 'hammersmith-city'];
+    const statuses = ['Minor Delays', 'Severe Delays', 'Part Suspended', 'Part Closure', 'Suspended'];
+    const colors = { 'Minor Delays': '#D97706', 'Severe Delays': '#DC2626', 'Part Suspended': '#B91C1C', 'Part Closure': '#8B5CF6', 'Suspended': '#7C2D12' };
+    new Chart(document.getElementById('composition'), {
+      type: 'bar',
+      data: {
+        labels: lines.map(l => LINE_LABELS[l]),
+        datasets: statuses.map(status => ({ label: status, data: lines.map(line => reliability[line]?.breakdown?.[status] || 0), backgroundColor: colors[status], borderRadius: 2 }))
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'circle', padding: 12, font: { size: 11 } } },
+          tooltip: { backgroundColor: '#111827', cornerRadius: 6, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.raw + '%' } }
+        },
+        scales: {
+          x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+          y: { stacked: true, title: { display: true, text: 'Disrupted time %', font: { size: 11 } }, grid: { color: '#F3F4F6' } }
+        }
+      }
+    });
+  })();
+}
+
+async function loadDashboard() {
+  try {
+    const response = await fetch(DATA_URL, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Failed to load dashboard data (${response.status})`);
+    }
+    renderDashboard(await response.json());
+  } catch (error) {
+    console.error(error);
+    showError('The dashboard data could not be loaded from Azure storage yet.');
+  }
+}
+
+loadDashboard();
+</script>
+</body>
+</html>

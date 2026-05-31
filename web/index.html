@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TfL Timeliness Dashboard</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 24px; background: #f5f5f5; color: #222; }
+    .container { max-width: 900px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; margin-bottom: 14px; }
+    .line-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+    .line-name { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .stat { font-size: 14px; color: #555; }
+    .timestamp { color: #666; font-size: 13px; }
+    .actions a { color: #005EA5; text-decoration: none; font-weight: 600; }
+    .actions a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>🚇 TfL Timeliness Dashboard</h1>
+      <p class="timestamp" id="timestamp">Loading latest summary from storage...</p>
+      <div class="actions">
+        <a href="timeliness_report.html">Open full timeliness report</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Current line summary</h2>
+      <div id="line-summary" class="line-grid"></div>
+    </div>
+  </div>
+
+  <script>
+    async function loadSummary() {
+      const summaryContainer = document.getElementById('line-summary');
+      const timestampEl = document.getElementById('timestamp');
+
+      try {
+        const response = await fetch('latest_summary.json', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('latest_summary.json not available yet');
+        }
+
+        const summary = await response.json();
+        timestampEl.textContent = `Last updated: ${summary.timestamp || 'Unknown'}`;
+
+        const lines = summary.lines || {};
+        if (Object.keys(lines).length === 0) {
+          summaryContainer.innerHTML = '<p class="stat">No line data is available yet.</p>';
+          return;
+        }
+
+        summaryContainer.innerHTML = Object.values(lines).map(line => {
+          const onTimePct = Number(line.on_time_pct || 0).toFixed(1);
+          return `
+            <div class="card">
+              <div class="line-name">${line.name}</div>
+              <div class="stat">On time: <strong>${onTimePct}%</strong></div>
+              <div class="stat">Predictions: ${line.total_predictions || 0}</div>
+              <div class="stat">Avg variance: ${line.avg_variance_secs || 0}s</div>
+            </div>
+          `;
+        }).join('');
+      } catch (error) {
+        timestampEl.textContent = 'Latest summary could not be loaded from storage yet.';
+        summaryContainer.innerHTML = `<p class="stat">${error.message}</p>`;
+      }
+    }
+
+    loadSummary();
+  </script>
+</body>
+</html>

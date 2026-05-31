@@ -25,6 +25,12 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+try:
+    from azure.storage.blob import BlobServiceClient, ContentSettings
+except ImportError:  # pragma: no cover - handled at runtime for Azure deployments
+    BlobServiceClient = None
+    ContentSettings = None
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -40,7 +46,7 @@ MONITORED_LINES = {
         "stations": {
             "940GZZLUBST": "Baker Street",
             "940GZZLUFYR": "Finchley Road",
-            "940GZZLUMSP": "Moor Park",
+            "940GZZLUMPK": "Moor Park",
             "940GZZLUHOH": "Harrow-on-the-Hill",
             "940GZZLUKSX": "King's Cross St. Pancras",
         }
@@ -91,6 +97,44 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", "timeliness_data"))
 
 # Output HTML file
 OUTPUT_HTML = Path(os.environ.get("OUTPUT_HTML", "timeliness_report.html"))
+
+
+def _is_azure_functions_runtime() -> bool:
+    """Return True when running inside Azure Functions."""
+    return bool(os.environ.get("WEBSITE_INSTANCE_ID"))
+
+
+def _resolve_runtime_path(configured_path: Path) -> Path:
+    """Resolve configured paths safely for the current runtime.
+
+    Azure Functions mounts deployed app files under /home/site/wwwroot as read-only.
+    For relative paths in Azure runtime, redirect writes to /tmp.
+    """
+    if configured_path.is_absolute() or not _is_azure_functions_runtime():
+        return configured_path
+    return Path("/tmp") / configured_path
+
+
+def get_data_dir() -> Path:
+    """Get writable data directory for snapshots and summary files."""
+    return _resolve_runtime_path(DATA_DIR)
+
+
+def get_output_html_path() -> Path:
+    """Get writable report output path."""
+    return _resolve_runtime_path(OUTPUT_HTML)
+
+def _read_collection_interval_minutes() -> int:
+    value = os.environ.get("TIMELINESS_INTERVAL_MINUTES", "2")
+    try:
+        parsed = int(value)
+        return parsed if parsed > 0 else 2
+    except ValueError:
+        return 2
+
+
+# Collection cadence (used by report text and Azure timer configuration docs)
+COLLECTION_INTERVAL_MINUTES = _read_collection_interval_minutes()
 
 
 def fetch_line_arrivals(line_id: str) -> List[Dict]:
@@ -278,9 +322,10 @@ def collect_all_snapshots() -> List[Dict]:
 
 def save_snapshot(snapshots: List[Dict]) -> Path:
     """Save a snapshot to the data directory as a timestamped JSON file."""
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    data_dir = get_data_dir()
+    data_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filepath = DATA_DIR / f"snapshot_{timestamp}.json"
+    filepath = data_dir / f"snapshot_{timestamp}.json"
     with open(filepath, "w") as f:
         json.dump(snapshots, f, indent=2)
     logger.info(f"Saved snapshot to {filepath}")
@@ -292,10 +337,11 @@ def load_historical_snapshots(max_files: int = 50) -> List[List[Dict]]:
 
     Returns the most recent snapshots, sorted by time.
     """
-    if not DATA_DIR.exists():
+    data_dir = get_data_dir()
+    if not data_dir.exists():
         return []
 
-    files = sorted(DATA_DIR.glob("snapshot_*.json"), reverse=True)[:max_files]
+    files = sorted(data_dir.glob("snapshot_*.json"), reverse=True)[:max_files]
     files.reverse()  # Oldest first
 
     snapshots = []
@@ -692,7 +738,7 @@ def generate_html_report(all_metrics: Dict[str, Dict], current_snapshots: List[D
       Arrival predictions from the TFL API are compared against scheduled timetable data.
       Trains arriving within ±{ON_TIME_THRESHOLD_SECONDS} seconds of their scheduled time are
       counted as "on time". The sparkline shows on-time % over time across all monitored stations.
-      Data is collected every 5 minutes during operating hours.
+      Data is collected every {COLLECTION_INTERVAL_MINUTES} minutes during operating hours.
     </div>
 
     {''.join(lines_html) if lines_html else '<div class="no-data">No timeliness data available yet. Data collection starts after 8:00 AM on weekdays.</div>'}
@@ -708,15 +754,19 @@ def generate_html_report(all_metrics: Dict[str, Dict], current_snapshots: List[D
     return html
 
 
-def run_collection():
-    """Main entry point: collect data, save snapshot, generate report."""
+def run_collection(return_payload: bool = False):
+    """Main entry point: collect data, save snapshot, generate report.
+
+    If return_payload is True, includes in-memory report data for optional
+    Azure blob publishing.
+    """
     logger.info("Starting timeliness data collection...")
 
     # Collect current snapshots
     current_snapshots = collect_all_snapshots()
 
     # Save the snapshot
-    save_snapshot(current_snapshots)
+    snapshot_path = save_snapshot(current_snapshots)
 
     # Load historical data (including the one we just saved)
     history = load_historical_snapshots()
@@ -728,10 +778,11 @@ def run_collection():
 
     # Generate HTML report
     html = generate_html_report(all_metrics, current_snapshots)
-    OUTPUT_HTML.parent.mkdir(parents=True, exist_ok=True)
-    with open(OUTPUT_HTML, "w") as f:
+    output_html_path = get_output_html_path()
+    output_html_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_html_path, "w") as f:
         f.write(html)
-    logger.info(f"Report generated: {OUTPUT_HTML}")
+    logger.info(f"Report generated: {output_html_path}")
 
     # Also save a summary JSON
     summary = {
@@ -746,12 +797,86 @@ def run_collection():
             "avg_variance_secs": metrics["overall_avg_variance"],
         }
 
-    summary_path = DATA_DIR / "latest_summary.json"
+    summary_path = get_data_dir() / "latest_summary.json"
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
     logger.info(f"Summary saved: {summary_path}")
 
+    if return_payload:
+        return {
+            "summary": summary,
+            "report_html": html,
+            "current_snapshots": current_snapshots,
+            "snapshot_name": snapshot_path.name,
+        }
+
     return summary
+
+
+def publish_artifacts_to_blob_storage(
+    *,
+    connection_string: str,
+    report_html: str,
+    summary: Dict,
+    current_snapshots: List[Dict],
+    snapshot_name: str,
+    container_name: str = "$web",
+    index_template_path: Path = Path("web/index.html"),
+) -> List[str]:
+    """Publish timeliness artifacts to Azure Blob Storage for static website use."""
+    if not connection_string:
+        raise ValueError("Blob storage connection string is required")
+    if BlobServiceClient is None:
+        raise RuntimeError("azure-storage-blob is required to publish artifacts")
+
+    service_client = BlobServiceClient.from_connection_string(connection_string)
+    container_client = service_client.get_container_client(container_name)
+    try:
+        container_client.create_container()
+    except Exception:
+        # Container already exists (or no-op based on account permissions)
+        pass
+
+    uploaded_blobs = []
+
+    report_blob = container_client.get_blob_client("timeliness_report.html")
+    report_blob.upload_blob(
+        report_html,
+        overwrite=True,
+        content_settings=ContentSettings(content_type="text/html; charset=utf-8") if ContentSettings else None,
+    )
+    uploaded_blobs.append("timeliness_report.html")
+
+    summary_blob = container_client.get_blob_client("latest_summary.json")
+    summary_blob.upload_blob(
+        json.dumps(summary, indent=2),
+        overwrite=True,
+        content_settings=ContentSettings(content_type="application/json; charset=utf-8") if ContentSettings else None,
+    )
+    uploaded_blobs.append("latest_summary.json")
+
+    snapshot_blob_name = f"snapshots/{snapshot_name}"
+    snapshot_blob = container_client.get_blob_client(snapshot_blob_name)
+    snapshot_blob.upload_blob(
+        json.dumps(current_snapshots, indent=2),
+        overwrite=True,
+        content_settings=ContentSettings(content_type="application/json; charset=utf-8") if ContentSettings else None,
+    )
+    uploaded_blobs.append(snapshot_blob_name)
+
+    if index_template_path.exists():
+        index_blob = container_client.get_blob_client("index.html")
+        index_blob.upload_blob(
+            index_template_path.read_text(encoding="utf-8"),
+            overwrite=True,
+            content_settings=ContentSettings(content_type="text/html; charset=utf-8") if ContentSettings else None,
+        )
+        uploaded_blobs.append("index.html")
+    else:
+        logger.warning(f"Web index template not found at {index_template_path}; skipping index upload")
+
+    logger.info(f"Published {len(uploaded_blobs)} blob artifacts to container '{container_name}'")
+    return uploaded_blobs
 
 
 if __name__ == "__main__":
